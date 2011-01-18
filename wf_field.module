@@ -467,7 +467,7 @@ function wf_field_get_current_transition_options($state, $instance, $options=arr
   return wf_field_get_transitions( $instance, $options );
 }
 
-// @todo do this for *all* entities
+// @todo do this for *all* entities not just nodes
 function wf_field_node_update($node) {
   // Get all workflow fields for this node, and if there are any also the
   // unsaved node to detect any workflow state changes.

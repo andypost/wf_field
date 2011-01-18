@@ -17,6 +17,7 @@ Unsure / flaky:
 - Validate configuration of the workflow states (only numeric keys etc.)
 - Validation of values & permission handling (not thoroughly tested)  
 - Cleanup - elegance some approaches are really clunky (or is that just drupal?)
+- Are the arguments passed/exposed to rules correctly (they don't show up in the arguments/context afterwards, might be me/d7)
 
 todo:
 - Support other entities - use "field_update_*"-hooks (or what they are called) instead of node-update-hooks to allow all entitities to have workflows
