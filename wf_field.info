@@ -1,0 +1,5 @@
+; $Id$
+name = Workflow Field
+description = Field-based workflow state relying on the rules engine for reactions etc. 
+core = 7.x
+dependencies[] = rules

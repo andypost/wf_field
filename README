@@ -1,0 +1,25 @@
+wf_field - workflow 
+
+Experimental Drupal 7 implementation of workflow based on johan falk's (@itangalo) proof-of-concept screencast (http://nodeone.se/blogg/workflow-field-proof-of-concept) and the discussion on g.d.o here http://groups.drupal.org/node/73153#comment-370844.
+
+It is a deliberately simple implementation that stores workflow state in a field and provides a simple ui for naming (and "disabling") transitions. It leverages rules for all of the workflow actions by exposing transitions as well as entering/leaving states as events for rules.
+
+This is my first go at the fields-API *and* Drupal 7 module development so please bear w/ me.
+ 
+Features:
+- workflow state in a field
+- Two widgets: one option field, one time "Transition-Buttons" (and a hidden field)   
+- minimal formatter w/ minimally useful css class wrapping (.wf-field-state-{STATE} and .wf-field-{field-name}-state-{state}) 
+- added an optional second "passive" label for each state to provide for an "active" and "passive" description of the state (i.e. 3|Publication|Published) 
+
+Unsure / flaky:
+- Instance settings or rather field settings?
+- Validate configuration of the workflow states (only numeric keys etc.)
+- Validation of values & permission handling (not thoroughly tested)  
+- Cleanup - elegance some approaches are really clunky (or is that just drupal?)
+
+todo:
+- Support other entities - use "field_update_*"-hooks (or what they are called) instead of node-update-hooks to allow all entitities to have workflows
+- Disable mulitple values  
+- More widgets - a block w/ the action buttons? 
+- Better ui for workflow configuration
