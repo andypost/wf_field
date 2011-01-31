@@ -46,6 +46,27 @@ function wf_field_field_info() {
 }
 
 /**
+ * Implements hook_perm().
+ */
+function wf_field_permission() {
+  $instances = _wf_field_get_all_instances();
+  // Build up a clunky list of all possible transitions.
+  $permissions = array();
+  foreach ($instances as $instance) {
+    $transitions = wf_field_get_transitions($instance, array('all_transitions' => TRUE, 'ignore_permissions' => TRUE));
+    foreach ( (array) $transitions as $key => $transition_label ) {
+      $permissions['wf_field ' . $instance['field_name'] . ' ' . $key] = array(
+        'title' => t('@field_name: transition: @transition_label', array('@field_name' => $instance['field_name'], '@transition_label' => $transition_label))
+      );
+    }
+    $permissions['wf_field ' . $instance['field_name'] . ' all'] = array(
+      'title' => t('@field_name: all transitions', array('@field_name' => $instance['field_name']))
+    );
+  }
+  return $permissions;
+}
+
+/**
  * Implements hook_field_validate().
  *
  * Verifies that the chosen workflow state is valid
@@ -370,7 +391,12 @@ function _wf_field_has_transition_label($from, $to, $instance) {
   }
 }
 
-
+/**
+ * Helper function that returns all instances wf_fields
+ * @param string $entity_type
+ * @param string $bundle_name
+ * @return array of instances
+ */
 function _wf_field_get_all_instances($entity_type=NULL, $bundle_name=NULL) {
   $instances = array();
   if (!isset($entity) && !isset($bundle_name)) {
@@ -461,9 +487,22 @@ function wf_field_get_current_state_label($state, $instance, $options=array()) {
   $states = _wf_field_get_states($instance, $options);
   return isset($states[$state]) ? $states[$state] : t('-');
 }
-
+/**
+ * 
+ * Return a associative array (transition id => transition label) with all available  
+ * @param int/object $state either a value, or if a node/entity is given the value will be determined 
+ * @param unknown_type $instance  field-instance-array
+ * @param unknown_type $options	options (@see wf_field_get_transitions)
+ */
 function wf_field_get_current_transition_options($state, $instance, $options=array()) {
-  $options['filter_from_state']=$state;
+  // if it's an object/node (@todo: entity) determine it by using the instance info 
+  if (is_object($state)) {
+    $field_name = $instance['field_name'];
+    $options['filter_from_state']=$state->{$field_name}['und'][0]['wf_state'];
+  } 
+  else {
+    $options['filter_from_state']=$state;
+  }
   return wf_field_get_transitions( $instance, $options );
 }
 
@@ -482,52 +521,36 @@ function wf_field_node_update($node) {
   // If workflow state has changed, invoke the appropriate rules event.
   global $user;
   foreach ($workflow_instances as $instance) {
-    // where does the 'und' come from, wtf?!
+    // retrieve old and new value
     $old_value = isset($unsaved_node->{$instance['field_name']}['und'][0]['wf_state']) ? $unsaved_node->{$instance['field_name']}['und'][0]['wf_state'] : NULL;
     $new_value = $node->{$instance['field_name']}['und'][0]['wf_state'];
-    $author = user_load($node->uid);
-
+    // load the author
+    
     if ( $old_value != $new_value ) {
+      $author = user_load($node->uid);
+      
       // The first four lines of the expression below is the name of the
       // workflow event, on the form workflow_fieldname_{FROMSTATE}_{TOSTATE}.
       rules_invoke_event(
         'wf_field_transition_' . $instance['field_name'] . '_' . $old_value . '_' . $new_value, $node, $unsaved_node, $user, $author
       );
-    }
-    // invoke outbound events
-    if (isset($old_value)) {
+      
+      // invoke outbound events 
+      if (isset($old_value)) {
+        rules_invoke_event(
+          'wf_field_out_' . $instance['field_name'] . '_' . $old_value, $node, $unsaved_node, $user, $author
+        );
+      }
+      // invoke inbound events
       rules_invoke_event(
-        'wf_field_out_' . $instance['field_name'] . '_' . $old_value, $node, $unsaved_node, $user, $author
+        'wf_field_in_' . $instance['field_name'] . '_' . $new_value, $node, $unsaved_node, $user, $author
       );
+        
+      
     }
-    // invoke inbound events
-    rules_invoke_event(
-      'wf_field_in_' . $instance['field_name'] . '_' . $new_value, $node, $unsaved_node, $user, $author
-    );
 
 
   }
-}
-
-/**
- * Implements hook_perm().
- */
-function wf_field_permission() {
-  $instances = _wf_field_get_all_instances();
-  // Build up a clunky list of all possible transitions.
-  $permissions = array();
-  foreach ($instances as $instance) {
-    $transitions = wf_field_get_transitions($instance, array('all_transitions' => TRUE, 'ignore_permissions' => TRUE));
-    foreach ( (array) $transitions as $key => $transition_label ) {
-      $permissions['wf_field ' . $instance['field_name'] . ' ' . $key] = array(
-        'title' => t('@field_name: transition: @transition_label', array('@field_name' => $instance['field_name'], '@transition_label' => $transition_label))
-      );
-    }
-    $permissions['wf_field ' . $instance['field_name'] . ' all'] = array(
-      'title' => t('@field_name: all transitions', array('@field_name' => $instance['field_name']))
-    );
-  }
-  return $permissions;
 }
 
 /**
@@ -542,3 +565,59 @@ function wf_field_button_widget_hidden_validate($element, &$form_state) {
     form_set_value($element, $transition['target_state'], $form_state);
   }
 }
+
+// {{{ BLOCK
+function wf_field_block_info() {
+  // List blocks.
+  $blocks['wf_field_transition_block'] = array(
+  	'info' => t('WF Field transition block'),
+  );
+  return $blocks;
+}
+
+
+function wf_field_block_view($delta = '') {
+  switch ($delta) {
+    case 'wf_field_transition_block':
+      // 
+      $node = menu_get_object('node');
+      if (is_object($node)) { 
+        $instances = _wf_field_get_all_instances('node', $node->type);
+        if (sizeof($instances)) {
+          $transitions = array();
+          foreach ($instances as $k=>$instance) {
+            $trans = wf_field_get_current_transition_options($node, $instance);;
+            if (sizeof($trans)) {
+              $transitions[$k] = $trans;
+            } 
+          }
+          // @todo: include an edit-link if the user can edit this node? 
+          if (sizeof($transitions)) {
+            $block['subject'] = t('Transitions');
+            $block['content'] = 'List of transitions';
+            return $block;
+          }
+        }
+        
+      }
+      break;
+  }
+}
+
+function wf_field_theme() {
+  return array(
+    'wf_field_transition_block' => array(
+      'variables' => array('node' => NULL),
+  		'file' => 'wf_field.theme.inc',
+      'template' => 'wf_field_transition_block'
+    ),
+  ); 
+} 
+
+// {{ MENU + TRIGGERING THE WORKFLOW TRANSITION PROGRAMATICALLY 
+function wf_field_menu() {
+  $items = array();
+  $items['wf_field/trigger_transition/%nid/%instance/%transition_id'] = array();
+}
+
+
