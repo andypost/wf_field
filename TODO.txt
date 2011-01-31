@@ -1,0 +1,23 @@
+0. give optional IDs for transitions (instead of 1_2 -> publish) for better handling / control
+
+1. allow for injection of parameters in a transition
+  - wf_field_transition_{FIELDNAME}_{TRANSITIONID}_form()
+    provide a form that exposes additional info/parameters to be mixed into the transition    
+    
+  - wf_field_transition_{FIELDNAME}_{TRANSITIONID}_form_alter($object, &$form, $form_state)?
+    
+
+2. implement hooks
+ - wf_field_states_alter($object, $instance, $params=array() ) 
+    alter available states for an object/entity
+      
+ - wf_field_transition_options_alter($object, $instance, $options, $params=array() )
+    alter the exposed transition options
+  
+ - wf_field_before_transition($object, $instance, $value?) -> allow reacting to stuff and maybe do _IGNORE, _DENY, _ALLOW to stop 
+ - wf_field_after_transition($object, $instance, $value?)
+ 
+ 
+ 3. expose a block that can use be used to trigger events (links/submit form)
+ 
+ 4. allow transitions w/o editing any of the other fields
