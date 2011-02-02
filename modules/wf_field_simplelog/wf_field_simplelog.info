@@ -1,0 +1,8 @@
+; $Id$
+name = wf_field_simplelog
+description = simple logging of all states and expose this log to views    
+core = 7.x
+package = wf_field
+dependencies[] = wf_field
+
+

@@ -3,31 +3,16 @@
 
 /**
  * @file
- * An example field using the Field API.
+ * An example workflow field using the Field API.
  *
- * This is updated from Barry Jaspan's presentation at Drupalcon Paris,
- * @link http://acquia.com/community/resources/acquia-tv/intro-field-api-module-developers Video Presentation @endlink
- *
- * Providing a field requires:
- * - Defining a field
- *   - hook_field_info()
- *   - hook_field_schema()
- *   - hook_field_validate()
- *   - hook_field_is_empty()
- *
- * - Defining a formatter for the field (the portion that outputs the field for
- *   display)
- *   - hook_field_formatter_info()
- *   - hook_field_formatter_view()
- *
- * - Defining a widget for the edit form
- *   - hook_field_widget_info()
- *   - hook_field_widget_form()
- *
- * *
  * See @link field_types Field Types API @endlink
  */
 
+
+/**
+ * @todo in order to abort a transition before the rules are run, it would be great for the hook_
+ */
+define('WF_FIELD_DENY', NODE_ACCESS_DENY);
 
 /**
  * Implements hook_field_info().
@@ -49,15 +34,18 @@ function wf_field_field_info() {
  * Implements hook_perm().
  */
 function wf_field_permission() {
+  module_load_include('inc', 'wf_field');
   $instances = _wf_field_get_all_instances();
   // Build up a clunky list of all possible transitions.
   $permissions = array();
   foreach ($instances as $instance) {
-    $transitions = wf_field_get_transitions($instance, array('all_transitions' => TRUE, 'ignore_permissions' => TRUE));
-    foreach ( (array) $transitions as $key => $transition_label ) {
-      $permissions['wf_field ' . $instance['field_name'] . ' ' . $key] = array(
-        'title' => t('@field_name: transition: @transition_label', array('@field_name' => $instance['field_name'], '@transition_label' => $transition_label))
-      );
+    $transitions = wf_field_get_transitions(null, $instance, array('all_transitions' => TRUE, 'ignore_permissions' => TRUE, 'complete_info' => TRUE));
+    foreach ( (array) $transitions as $key => $info ) {
+      if (!$info['disabled']) {
+        $permissions['wf_field ' . $instance['field_name'] . ' ' . $key] = array(
+          'title' => t('@field_name: transition: @transition_label', array('@field_name' => $instance['field_name'], '@transition_label' => $info['full_label']))
+        );
+      }
     }
     $permissions['wf_field ' . $instance['field_name'] . ' all'] = array(
       'title' => t('@field_name: all transitions', array('@field_name' => $instance['field_name']))
@@ -72,7 +60,8 @@ function wf_field_permission() {
  * Verifies that the chosen workflow state is valid
  */
 function wf_field_field_validate($entity_type, $entity, $field, $instance, $langcode, $items, &$errors) {
-  // @todo: permission + transition check - i am not 100% sure this works
+  module_load_include('inc', 'wf_field');
+  // @todo: make this a little nicer ...
   foreach ($items as $delta => $item) {
     $target_options = wf_field_get_current_transition_options($item['wf_state'], $instance, array('include_no_change_option'  => TRUE));
     if ($item['wf_state'] && !isset($target_options[$item['wf_state']]) ) {
@@ -96,7 +85,8 @@ function wf_field_field_instance_settings_form($field, $instance) {
     '#collapsible'  => TRUE
   );
 
-  $transitions = wf_field_get_transitions( $instance, array('all_transitions' => TRUE) );
+  module_load_include('inc', 'wf_field');
+  $transitions = wf_field_get_transitions(null, $instance, array('all_transitions' => TRUE, 'complete_info' => TRUE) );
 
   $form['wf_settings']['wf_states'] = array(
     '#type' => 'fieldset',
@@ -108,7 +98,7 @@ function wf_field_field_instance_settings_form($field, $instance) {
   //
   $form['wf_settings']['wf_states']['text']  = array(
     '#type' => 'textarea',
-    '#title' => t("One workflow state per line. Workflows are identified by numbers, but can have text descriptions if given on the form '1|draft' or '2|draft (ready for review)'; '3|Publication|Published'"),
+    '#title' => t("One workflow state per line. Workflows must be identified by *numbers*, but can have text descriptions if given on the form '1|draft' or '2|draft (ready for review)'; '3|Publication|Published'"),
     '#default_value' => isset( $settings['wf_settings']['wf_states']['text']   ) ? $settings['wf_settings']['wf_states']['text']  : '',
     '#weight' => -1
   );
@@ -116,22 +106,56 @@ function wf_field_field_instance_settings_form($field, $instance) {
   if (is_array($transitions) && sizeof($transitions)) {
     $form['wf_settings']['wf_transitions'] = array(
       '#type' => 'fieldset',
-      '#title' => t('Name and define available workflow transitions'),
+      '#title' => t('Configure workflow transitions'),
       '#collapsed' => sizeof($transitions) == 0,
       '#collapsible'  => TRUE,
-      '#description' => t('Provide named workflow transitions or disable transition by leaving the transition field blank; all enable/default transitions will have permissions in the !permissions-table.',
+      '#description' => t('Provide named workflow transitions or disable transition by leaving the transition field blank; all enabled/default transitions will have permissions in the !permissions-table.',
     array('!permissions-table' => l('permissions table', 'admin/user/permissions'))),
     );
 
-    foreach ( $transitions as $key => $transition) {
-      $field_key = $key;
-      $form['wf_settings']['wf_transitions'][$field_key] = array(
-        '#type' => 'textfield',
-        '#title' => check_plain($transition),
-        '#default_value' => (isset( $settings['wf_settings']['wf_transitions'][$field_key])) ?  $settings['wf_settings']['wf_transitions'][$field_key] : '<default>',
-        '#description' => t('To disable transition empty field. You can give this transition a name, or leave &lt;default&gt; as a placeholder for automatic "FROM_STATE -> TO_STATE" transition labels.'),
-        '#parent' => 'transitions'
-        );
+    $disabled_counter = 0;
+    foreach ($transitions as $key => $transition) {
+      if (!$transition['disabled']) {
+        $field_key = $key;
+        $label = $transition['full_label'];
+        $description = t('To disable transition empty field. You can give this transition a name, or leave &lt;default&gt; as a placeholder for automatic "FROM_STATE -> TO_STATE" transition labels.');
+        $form['wf_settings']['wf_transitions'][$field_key] = array(
+          '#type' => 'textfield',
+          '#title' => $label,
+          '#default_value' => (isset( $settings['wf_settings']['wf_transitions'][$field_key])) ?  $settings['wf_settings']['wf_transitions'][$field_key] : '<default>',
+          '#description' => $description,
+          '#parent' => 'transitions'
+        ); 
+      } else {
+        $disabled_counter++;
+      }
+    }
+    
+    if ($disabled_counter) {
+      $form['wf_settings']['wf_transitions_disabled'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Disabled workflow transitions (%count)', array('%count'=>$disabled_counter)),
+        '#collapsed' => TRUE,
+        '#collapsible'  => TRUE,
+        '#description' => t('These workflow transitions have been disabled. Only enabled/default transitions will have permissions in the !permissions-table.',
+          array('!permissions-table' => l('permissions table', 'admin/user/permissions'))),
+      );
+    
+      foreach ($transitions as $key => $transition) {
+        if ($transition['disabled']) {
+          $field_key = $key;
+          $label = $transition['default_label'];
+          $description = t('Transition disabled. Give transition a name (or &lt;default&gt;) to enable transition.');
+          $form['wf_settings']['wf_transitions_disabled'][$field_key] = array(
+            '#type' => 'textfield',
+            '#title' => $label,
+            '#default_value' => (isset( $settings['wf_settings']['wf_transitions'][$field_key])) ?  $settings['wf_settings']['wf_transitions'][$field_key] : '<default>',
+            '#description' => $description,
+            '#parent' => 'transitions'
+          );
+          
+        }
+      }
     }
   }
   else {
@@ -178,18 +202,14 @@ function wf_field_field_formatter_info() {
  * Implements hook_field_formatter_view().
  *
  * Two formatters are implemented.
- * - wf_field_simple_text just outputs markup indicating the color that
- *   was entered and uses an inline style to set the text color to that value.
- * - wf_field_color_background does the same but also changes the
- *   background color of div.region-content.
+ * - wf_field_simple_text just outputs the workflow state.
  */
 function wf_field_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
   $element = array();
 
   switch ($display['type']) {
-    // This formatter simply outputs the field as text and with a color.
     case 'wf_field_simple_text':
-      //
+      module_load_include('inc', 'wf_field');
       foreach ($items as $delta => $item) {
         // @todo: better
         $element[$delta]['#markup'] =
@@ -213,6 +233,11 @@ function wf_field_field_formatter_view($entity_type, $entity, $field, $instance,
 
 /**
  * Implements hook_field_widget_info().
+ * 
+ * Two widgets are exposed:
+ * 
+ * - "normal" options pulldown (select box with available transitions) 
+ * - "buttons" widget that adds buttons to the Save/Preview-actions section of the (node edit) form. 
  */
 function wf_field_field_widget_info() {
   return array(
@@ -229,31 +254,20 @@ function wf_field_field_widget_info() {
 
 /**
  * Implements hook_field_widget_form().
- *
- * Three different forms are provided, for the three widget types.
- *
- * The 'wf_field_colorpicker' and 'wf_field_options' are essentially
- * the same, but wf_field_colorpicker adds a javascript colorpicker
- * helper.
- *
- * wf_field_options displays three text fields, one each for red, green,
- * and blue. However, the field type defines a single text column,
- * rgb, which needs an HTML color spec. Define an element validate
- * handler that converts our r, g, and b fields into a simulated single
- * 'rgb' form element.
  */
 function wf_field_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
   // detect the default value form
   // @todo - a better way to do this?
   $is_default_value_widget = ( isset($form['#type']) && $form['#type'] == 'fieldset' ) && $form['#title'] == 'Default value' ;
 
-
+  module_load_include('inc', 'wf_field');  
+  
   $value = isset($items[$delta]['wf_state']) ? $items[$delta]['wf_state'] : NULL;
   $widget = $instance['widget'];
   $element += array(
     '#delta' => $delta,
   );
-  // default value form gets
+  // default value form gets to select from all states
   if ($is_default_value_widget) {
     $options = (array) _wf_field_get_states($instance);
     $element['wf_state'] = array(
@@ -311,10 +325,9 @@ function wf_field_field_widget_form(&$form, &$form_state, $field, $instance, $la
   return $element;
 }
 
-
 /**
- * Validate the individual fields and then convert them into a single HTML RGB
- * value as text.
+ * Validate field options
+ * @TODO: 
  */
 function wf_field_options_validate($element, &$form_state) {
   // @todo: validate and man i don't understand some of this ...
@@ -334,180 +347,13 @@ function wf_field_field_widget_error($element, $error, $form, &$form_state) {
 }
 
 /**
- * Return all states
- * @param	array		field instance array
- * @param unknown_type $options  passive => TRUE - return (optional) passive label (i.e. Published instead of Publication)
+ * Implements hook_node_update()
+ * @todo do this for *all* entities not just nodes
+ * @param unknown_type $node
  */
-function _wf_field_get_states($instance, $options=array()) {
-
-  if (!isset($instance['settings']['wf_settings']['wf_states']['text']  )) {
-    return FALSE;
-  }
-  $raw_states = explode("\n", trim($instance['settings']['wf_settings']['wf_states']['text']  ));
-
-  // do we want to return the "passive" expression (Published) instead of (Publication)
-  $passive = isset($options['passive']) && $options['passive'];
-
-  // Build an array of workflow states on the form (number => name of state).
-  // If no state name is given, use the state integer instead.
-  $states = array();
-  foreach ($raw_states as $state) {
-    $parts = explode('|', $state);
-    if ($parts[0]) {
-      if ($passive && isset($parts[2])) {
-        $states[$parts[0]] = trim( ($parts[2]) ? $parts[2] : trim( ($parts[1]) ? $parts[1] : $parts[0] ) );
-      }
-      else {
-        $states[$parts[0]] = trim( ($parts[1]) ? $parts[1] : $parts[0] );
-      }
-    }
-  }
-
-  return $states;
-}
-
-/**
- * Return the (named) transitions of an instance
- * @param array $instance
- */
-function _wf_field_get_transition_labels($instance) {
-  if (!isset($instance['settings']['wf_settings']['wf_transitions'])) {
-    return FALSE;
-  }
-  return $instance['settings']['wf_settings']['wf_transitions'];
-}
-
-
-/**
- * Return the (named) transitions of an instance
- * @param array $instance
- */
-function _wf_field_has_transition_label($from, $to, $instance) {
-  if (!isset($instance['settings']['wf_settings']['wf_transitions'][$from . '_' . $to]) || !$instance['settings']['wf_settings']['wf_transitions'][$from . '_' . $to]) {
-    return FALSE;
-  }
-  else {
-    return $instance['settings']['wf_settings']['wf_transitions'][$from . '_' . $to];
-  }
-}
-
-/**
- * Helper function that returns all instances wf_fields
- * @param string $entity_type
- * @param string $bundle_name
- * @return array of instances
- */
-function _wf_field_get_all_instances($entity_type=NULL, $bundle_name=NULL) {
-  $instances = array();
-  if (!isset($entity) && !isset($bundle_name)) {
-    $v = field_info_instances($entity_type, $bundle_name);
-    foreach ($v as $entity_type => $bundles) {
-      foreach ($bundles as $bundle) {
-        foreach ($bundle as $instance) {
-          // @todo: there must be a way to filter this?
-          if (isset($instance['settings']['wf_settings'])) {
-            $instances[] = $instance;
-          }
-        }
-      }
-    }
-  }
-  elseif ($entity_type && $bundle_name) {
-    $bundle = field_info_instances($entity_type, $bundle_name);
-    foreach ($bundle as $instance) {
-      // @todo: there must be a way to filter this?
-      if (isset($instance['settings']['wf_settings'])) {
-        $instances[] = $instance;
-      }
-    }
-  }
-  return $instances;
-}
-
-
-/**
- * Helper function for Workflow Fields listing state transitions for a field.
- * @param Array $field
- *   An array with field information, in the form returned by content_fields().
- * @return Array
- *   An array with possible workflow state transitions for the field. Values
- *   are the names of to and from states, as named in the allowed values list.
- *   Keyes are the number of the states, separated by underscore. An example
- *   return could be array('1_2' => 'needs review -> approved').
- */
-function wf_field_get_transitions($instance, $options=array() ) {
-  $states = _wf_field_get_states($instance);
-  if (!is_array($states)) {
-    return FALSE;
-  }
-  // filter by current state
-  $filter_from_state=isset($options['filter_from_state']) ? $options['filter_from_state'] : NULL;
-
-  $transition_labels = _wf_field_get_transition_labels($instance);
-
-  // Build an array of the transitions, on the form 0_1 => 'from state -> to state'.
-  $transitions = array();
-
-  if (isset($filter_from_state)&&isset($options['include_no_change_option'])&&$options['include_no_change_option']) {
-    // Change transition name on current state to 'no changes'
-    $transitions[$filter_from_state] = t('No changes');
-  }
-
-  // show all / do not hide empty transitions
-  $all_transitions = isset($options['all_transitions']) && $options['all_transitions'];
-  $no_transition_labels =  isset($options['no_transition_labels']) && $options['no_transition_labels'];
-  $ignore_permissions = isset($options['ignore_permissions']) && $options['ignore_permissions'];
-
-  foreach ($states as $from_number => $from_state) {
-    foreach ($states as $to_number => $to_state) {
-      // Exclude the case where from and to state are the same.
-      if ( $from_number != $to_number && ( $all_transitions || _wf_field_has_transition_label($from_number, $to_number, $instance) ) ) {
-        $label = _wf_field_has_transition_label($from_number, $to_number, $instance);
-        if ( !$label || $label == '<default>' || $no_transition_labels ) {
-          $label = t('@from_state -> @to_state', array('@from_state' => $from_state, '@to_state' => $to_state));
-        }
-
-        $key = 'wf_field ' . $instance['field_name'] . ' ' . $from_number . '_' . $to_number;
-        // check permissions either for this specific transition or all transtion
-        if ( $ignore_permissions || user_access( $key ) || user_access( 'wf_field ' . $instance['field_name'] . ' all')) {
-          if (!isset($filter_from_state)) {
-            $transitions[ $from_number . '_' . $to_number] = $label;
-          }
-          elseif ( $filter_from_state == $from_number ) {
-            $transitions[ $to_number ] = $label;
-          }
-        }
-      }
-    }
-  }
-  return $transitions;
-}
-
-function wf_field_get_current_state_label($state, $instance, $options=array()) {
-  $states = _wf_field_get_states($instance, $options);
-  return isset($states[$state]) ? $states[$state] : t('-');
-}
-/**
- * 
- * Return a associative array (transition id => transition label) with all available  
- * @param int/object $state either a value, or if a node/entity is given the value will be determined 
- * @param unknown_type $instance  field-instance-array
- * @param unknown_type $options	options (@see wf_field_get_transitions)
- */
-function wf_field_get_current_transition_options($state, $instance, $options=array()) {
-  // if it's an object/node (@todo: entity) determine it by using the instance info 
-  if (is_object($state)) {
-    $field_name = $instance['field_name'];
-    $options['filter_from_state']=$state->{$field_name}['und'][0]['wf_state'];
-  } 
-  else {
-    $options['filter_from_state']=$state;
-  }
-  return wf_field_get_transitions( $instance, $options );
-}
-
-// @todo do this for *all* entities not just nodes
 function wf_field_node_update($node) {
+  module_load_include('inc', 'wf_field');
+  
   // Get all workflow fields for this node, and if there are any also the
   // unsaved node to detect any workflow state changes.
   $workflow_instances = _wf_field_get_all_instances('node', $node->type);
@@ -529,6 +375,11 @@ function wf_field_node_update($node) {
     if ( $old_value != $new_value ) {
       $author = user_load($node->uid);
       
+      $vars = array('field_instance'=>$instance, 'old_value'=>$old_value, 'new_value'=>$new_value, 'author'=>$author, 'node'=>$node, 'unsaved_node'=>$node, 'user'=>$user);
+      
+      $responses = module_invoke_all('wf_field_before_transition_rules', $node, $instance, $vars);
+      // @todo: check for WF_FIELD_DENY in order to abort a transition
+      
       // The first four lines of the expression below is the name of the
       // workflow event, on the form workflow_fieldname_{FROMSTATE}_{TOSTATE}.
       rules_invoke_event(
@@ -545,11 +396,17 @@ function wf_field_node_update($node) {
       rules_invoke_event(
         'wf_field_in_' . $instance['field_name'] . '_' . $new_value, $node, $unsaved_node, $user, $author
       );
-        
+      
+      // "any transition"-events per instance/field_name
+      rules_invoke_event(
+        'wf_field_any_' . $instance['field_name'] , $node, $unsaved_node, $user, $author
+      );
+      
+      $responses = module_invoke_all('wf_field_after_transition_rules', $node, $instance, $vars);
+      // @todo: rollback doesn't make sense any more. 
+      // we'll never be able to ensure "undoing"/stopping rule event from taking place, that ship has sailed ... 
       
     }
-
-
   }
 }
 
@@ -565,59 +422,91 @@ function wf_field_button_widget_hidden_validate($element, &$form_state) {
     form_set_value($element, $transition['target_state'], $form_state);
   }
 }
+// }}} FIELDS
 
-// {{{ BLOCK
+// {{{ BLOCK + MENUS
+/**
+ * Implements hook_block_info().
+ */
 function wf_field_block_info() {
   // List blocks.
-  $blocks['wf_field_transition_block'] = array(
+  $blocks['wf_field_trigger_transition'] = array(
   	'info' => t('WF Field transition block'),
   );
   return $blocks;
 }
 
-
+/**
+ * Display block
+ * @param unknown_type $delta
+ */
 function wf_field_block_view($delta = '') {
   switch ($delta) {
-    case 'wf_field_transition_block':
-      // 
+    case 'wf_field_trigger_transition':
+      // if we can retrieve a node from the url/path
       $node = menu_get_object('node');
       if (is_object($node)) { 
+        module_load_include('inc', 'wf_field');
         $instances = _wf_field_get_all_instances('node', $node->type);
         if (sizeof($instances)) {
-          $transitions = array();
+          $grouped_transitions = array();
           foreach ($instances as $k=>$instance) {
             $trans = wf_field_get_current_transition_options($node, $instance);;
             if (sizeof($trans)) {
-              $transitions[$k] = $trans;
+              $grouped_transitions[$k]['transitions'] = $trans;
+              $grouped_transitions[$k]['instance'] = $instance;
             } 
           }
           // @todo: include an edit-link if the user can edit this node? 
-          if (sizeof($transitions)) {
+          if (sizeof($grouped_transitions)) {
             $block['subject'] = t('Transitions');
-            $block['content'] = 'List of transitions';
+            // @todo: either link to a confirm form or directly
+            $confirm_form = false;
+            $block['content'] = theme('wf_field_transition_block', array('node'=>$node, 'grouped_transitions'=>$grouped_transitions, 'confirm_form'=>$confirm_form) );
             return $block;
           }
         }
-        
       }
       break;
   }
 }
 
+/**
+ * Implements hook_theme().
+ */
 function wf_field_theme() {
   return array(
     'wf_field_transition_block' => array(
-      'variables' => array('node' => NULL),
-  		'file' => 'wf_field.theme.inc',
-      'template' => 'wf_field_transition_block'
+      'variables' => array('node' => NULL, 'grouped_transitions' => array() ),
+  		'file' => 'wf_field.theme.inc'
     ),
   ); 
 } 
 
-// {{ MENU + TRIGGERING THE WORKFLOW TRANSITION PROGRAMATICALLY 
+/**
+ * Implements hook_menu().
+ */
 function wf_field_menu() {
   $items = array();
-  $items['wf_field/trigger_transition/%nid/%instance/%transition_id'] = array();
+  $items['node/%node/wf_field_trigger_transition/%/%'] = array(
+    'title' => 'Trigger Transition',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('wf_field_trigger_transition', 1, 3, 4),
+    'access callback' => 'wf_field_trigger_transition_access',
+    'access arguments' => array(1, 3, 4),
+    'type' => MENU_CALLBACK,
+    'file' => 'wf_field.pages.inc',
+  );
+  return $items;
 }
 
-
+/**
+ * Access callback for wf_field_trigger_transition (node/%node/wf_field_trigger_transition/%/%)
+ * @param object $node
+ * @param string $field_name
+ * @param string/int $target_state
+ */
+function wf_field_trigger_transition_access($node, $field_name, $target_state) {
+  module_load_include('inc', 'wf_field');
+  return wf_field_is_transition_allowed($node, $field_name, $target_state);
+}

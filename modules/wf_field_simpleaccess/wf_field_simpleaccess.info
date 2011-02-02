@@ -1,0 +1,6 @@
+; $Id$
+name = wf_field_simpleaccess
+description = simple wf_field node_access module; only users who can "transition" the object to another state will be able to edit the node. The node can still be viewed by e.g. author. More should be handled by content_access (once it's fully ported)     
+core = 7.x
+package = wf_field
+dependencies[] = wf_field

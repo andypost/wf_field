@@ -1,0 +1,8 @@
+<?php 
+/**
+ * Implements hook_wf_field_before_transition
+ */
+function wf_field_simplelog_wf_field_after_transition_rules($node, $instance, $params=array() ) {
+	// write the old and new node in to the log file
+	
+}

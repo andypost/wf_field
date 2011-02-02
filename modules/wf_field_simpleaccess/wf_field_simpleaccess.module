@@ -1,0 +1,53 @@
+<?php 
+/**
+ * Implements hook_node_access().
+ *
+ *  Allows only nodes to be edited that you can perform a workflow action on.
+ */
+function wf_field_simpleaccess_node_access($node, $op, $account) {
+  // If $node is a string, the node has not yet been created. We don't care
+  // about that case.
+  if (!is_object($node)) {
+    return NODE_ACCESS_IGNORE;
+  }
+  // check for operation 
+  switch ($op) {
+    case 'update':
+    case 'delete':
+      // check if we actually have a wf_state-field in this node
+      $instances = _wf_field_get_all_instances('node', $node->type);
+      if (!is_array($instances)||!sizeof($instances)) {
+        return NODE_ACCESS_IGNORE;
+      }
+      // check for available transitions
+      $has_transitions = false;
+      foreach ($instances as $key=>$instance) {
+        $options = wf_field_get_current_transition_options($node, $instance);
+        if (sizeof($options)) {
+          $has_transitions = true;
+        }
+      }
+      // if we have now right to transition - deny access
+      if (!$has_transitions)  {
+        return NODE_ACCESS_DENY;
+      } 
+      return NODE_ACCESS_IGNORE;
+      break;
+  }
+}
+
+
+function wf_field_simpleaccess_perm() {
+  // @todo: 
+  // deny from all?  -> allow 
+  // allow from all?  -> deny 
+  
+  // explicitly deny viewing rights based on state   
+  // explicitly deny author editing right based on state
+  // grant author editing right based on state 
+  
+}
+
+function wf_field_simpleaccess_form_alter() {
+  
+}
