@@ -1,8 +1,0 @@
-; $Id$
-name = wf_field_simpleaccess
-description = simple node_access    
-core = 7.x
-package = wf_field
-dependencies[] = wf_field
-
-
