@@ -8,12 +8,12 @@ This is my first go at the fields-API *and* Drupal 7 module development so pleas
  
 Features:
 - workflow state in a field
-- Two widgets: one option field, one time "Transition-Buttons" (and a hidden field)   
+- Two widgets: one option field, one time "Transition-Buttons" (and hidden field)   
 - minimal formatter w/ minimally useful css class wrapping (.wf-field-state-{STATE} and .wf-field-{field-name}-state-{state}) 
 - added an optional second "passive" label for each state to provide for an "active" and "passive" description of the state (i.e. 3|Publication|Published) 
 
 Unsure / flaky:
-- Instance settings or rather field settings?
+- Instance settings / field settings?
 - Validate configuration of the workflow states (only numeric keys etc.)
 - Validation of values & permission handling (not thoroughly tested)  
 - Cleanup - elegance some approaches are really clunky (or is that just drupal?)
