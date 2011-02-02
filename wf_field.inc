@@ -46,10 +46,12 @@ function _wf_field_get_transition_labels($instance) {
 
 /**
  * Return the (named) transitions of an instance
- * @param array $instance
  */
 function _wf_field_has_transition_label($from, $to, $instance) {
-  if (!isset($instance['settings']['wf_settings']['wf_transitions'][$from . '_' . $to]) || !$instance['settings']['wf_settings']['wf_transitions'][$from . '_' . $to]) {
+  if (!isset($instance['settings']['wf_settings']['wf_transitions'][$from . '_' . $to])) {
+    return NULL;
+  } 
+  elseif (!$instance['settings']['wf_settings']['wf_transitions'][$from . '_' . $to]) {
     return FALSE;
   }
   else {
@@ -194,17 +196,16 @@ function wf_field_get_transitions($state_or_node, $field_name_or_instance, $opti
         if ($complete_info) {
           $default_label = t('@from_state -> @to_state', array('@from_state' => $from_state, '@to_state' => $to_state));
           $raw_label = _wf_field_has_transition_label($from_number, $to_number, $instance);
-          
           $label = array(
             'label' => $label,
             'raw_label' => $raw_label,
             'default_label' => $default_label,
-            'full_label' => $label != $default_label ? t('!raw_label (!label)', array('!raw_label'=>$default_label, '!label'=>$label)) : $raw_label, 
+            'full_label' => ( $label != $default_label ) ? t('!raw_label (!label)', array('!raw_label'=>$default_label, '!label'=>$label)) : $raw_label, 
             'from_state' => $from_state,
             'to_state' => $to_state,
             'permission_key' => $key,
-            // disabled transition when "empty" description/label.
-            'disabled' => !$raw_label,
+            // disabled transition when explictly "empty" description/label (not null!)
+            'disabled' => isset($raw_label) && (!$raw_label),
           ); 
         }
 

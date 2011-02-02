@@ -113,49 +113,22 @@ function wf_field_field_instance_settings_form($field, $instance) {
     array('!permissions-table' => l('permissions table', 'admin/user/permissions'))),
     );
 
-    $disabled_counter = 0;
     foreach ($transitions as $key => $transition) {
       if (!$transition['disabled']) {
-        $field_key = $key;
-        $label = $transition['full_label'];
+        $label = $transition['full_label'] ? $transition['full_label'] : $transition['default_label'];
         $description = t('To disable transition empty field. You can give this transition a name, or leave &lt;default&gt; as a placeholder for automatic "FROM_STATE -> TO_STATE" transition labels.');
-        $form['wf_settings']['wf_transitions'][$field_key] = array(
-          '#type' => 'textfield',
-          '#title' => $label,
-          '#default_value' => (isset( $settings['wf_settings']['wf_transitions'][$field_key])) ?  $settings['wf_settings']['wf_transitions'][$field_key] : '<default>',
-          '#description' => $description,
-          '#parent' => 'transitions'
-        ); 
       } else {
-        $disabled_counter++;
+        $label = $transition['default_label'];
+        $description = t('Transition disabled. Give transition a name (or &lt;default&gt;) to enable transition.');
       }
-    }
-    
-    if ($disabled_counter) {
-      $form['wf_settings']['wf_transitions_disabled'] = array(
-        '#type' => 'fieldset',
-        '#title' => t('Disabled workflow transitions (%count)', array('%count'=>$disabled_counter)),
-        '#collapsed' => TRUE,
-        '#collapsible'  => TRUE,
-        '#description' => t('These workflow transitions have been disabled. Only enabled/default transitions will have permissions in the !permissions-table.',
-          array('!permissions-table' => l('permissions table', 'admin/user/permissions'))),
-      );
-    
-      foreach ($transitions as $key => $transition) {
-        if ($transition['disabled']) {
-          $field_key = $key;
-          $label = $transition['default_label'];
-          $description = t('Transition disabled. Give transition a name (or &lt;default&gt;) to enable transition.');
-          $form['wf_settings']['wf_transitions_disabled'][$field_key] = array(
-            '#type' => 'textfield',
-            '#title' => $label,
-            '#default_value' => (isset( $settings['wf_settings']['wf_transitions'][$field_key])) ?  $settings['wf_settings']['wf_transitions'][$field_key] : '<default>',
-            '#description' => $description,
-            '#parent' => 'transitions'
-          );
-          
-        }
-      }
+      $field_key = $key;
+      $form['wf_settings']['wf_transitions'][$field_key] = array(
+        '#type' => 'textfield',
+        '#title' => $label,
+        '#default_value' => (isset( $settings['wf_settings']['wf_transitions'][$field_key])) ?  $settings['wf_settings']['wf_transitions'][$field_key] : '<default>',
+        '#description' => $description,
+        '#parent' => 'transitions'
+      ); 
     }
   }
   else {
