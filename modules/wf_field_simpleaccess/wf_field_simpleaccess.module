@@ -14,6 +14,7 @@ function wf_field_simpleaccess_node_access($node, $op, $account) {
   switch ($op) {
     case 'update':
     case 'delete':
+      module_load_include('inc', 'wf_field');
       // check if we actually have a wf_state-field in this node
       $instances = _wf_field_get_all_instances('node', $node->type);
       if (!is_array($instances)||!sizeof($instances)) {
