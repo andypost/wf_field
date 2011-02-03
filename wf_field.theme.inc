@@ -8,8 +8,7 @@
  */
 
 /**
- * Returns HTML for a list of recent comments to be displayed in the comment block.
- *
+ * Returns a render array with links to confirmation form (or direct links) for the different transitions available
  * @ingroup themeable
  */
 function theme_wf_field_transition_block( &$variables ) {
