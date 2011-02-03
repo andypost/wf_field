@@ -29,7 +29,7 @@ function theme_wf_field_transition_block( &$variables ) {
 
   if ($items) {
     return array(
-    	'#theme' => 'item_list',
+      '#theme' => 'item_list',
       '#items' => $items,
     ); 
   }
