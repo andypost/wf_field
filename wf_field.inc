@@ -1,4 +1,12 @@
 <?php
+// $Id$
+
+/**
+ * @file
+ *
+ * API / Internal helper functions
+ */
+
 /**
  * Return all states
  * @param	array		field instance array
@@ -102,11 +110,7 @@ function _wf_field_get_all_instances($entity_type=NULL, $bundle_name=NULL, $fiel
 function _wf_field_get_wf_field_instance($entity_type, $field_name, $bundle_name) {
   // hmm really the api is kinda weird w/ the order 
   $info = field_info_instance($entity_type, $field_name, $bundle_name);
-  if (!$info['settings']['wf_settings']) {
-    return NULL;
-  } else {
-    return $info;
-  }
+  return !$info['settings']['wf_settings'] ? NULL : $info;
 }
 
 
@@ -140,14 +144,14 @@ function wf_field_get_transitions($state_or_node, $field_name_or_instance, $opti
     // @todo - not just handle node.
     $instance = _wf_field_get_wf_field_instance('node', $field_name_or_instance, $state_or_node->type);
     if (!is_array($instance)) {
-      return false;
+      return FALSE;
     }
     $field_name = $instance['field_name']; 
     $options['filter_from_state'] = isset($state_or_node->{$field_name}['und'][0]['wf_state']) ? $state_or_node->{$field_name}['und'][0]['wf_state'] : NULL;
   } 
   else {
     // we cannot determine the instance
-    return false;
+    return FALSE;
   }
   // retrieve available states
   $states = _wf_field_get_states($instance);
@@ -200,11 +204,11 @@ function wf_field_get_transitions($state_or_node, $field_name_or_instance, $opti
             'label' => $label,
             'raw_label' => $raw_label,
             'default_label' => $default_label,
-            'full_label' => ( $label != $default_label ) ? t('!raw_label (!label)', array('!raw_label'=>$default_label, '!label'=>$label)) : $raw_label, 
+            'full_label' => ( $label != $default_label ) ? t('!raw_label (!label)', array('!raw_label' => $default_label, '!label' => $label)) : $raw_label, 
             'from_state' => $from_state,
             'to_state' => $to_state,
             'permission_key' => $key,
-            // disabled transition when explictly "empty" description/label (not null!)
+            // disabled transition when explictly "empty" description/label (not NULL!)
             'disabled' => isset($raw_label) && (!$raw_label),
           ); 
         }
@@ -226,7 +230,7 @@ function wf_field_get_transitions($state_or_node, $field_name_or_instance, $opti
   // for certain target states to be removed (or even added)  
   if (is_object($state_or_node)) {
     // the transitions-array will be keyed by targetstate  
-    $context =  array('object'=>$state_or_node, 'field_instance'=>$instance, 'options'=>$options) ;
+    $context =  array('object' => $state_or_node, 'field_instance' => $instance, 'options' => $options) ;
     drupal_alter('wf_field_transitions_alter', $transitions, $context);
   }
   
@@ -244,7 +248,7 @@ function wf_field_get_current_state_label($state, $instance, $options=array()) {
     // @todo - not just handle node.
     $instance = _wf_field_get_wf_field_instance('node', $instance, $state->type);
     if (!is_array($instance)) {
-      return false;
+      return FALSE;
     }
   }
   
@@ -274,8 +278,8 @@ function wf_field_get_current_transition_options($state, $instance, $options=arr
  * @param unknown_type $target_state
  * @param unknown_type $account
  */
-function wf_field_is_transition_allowed($state, $instance, $target_state, $account=null) {
-  $transition_options = wf_field_get_current_transition_options($state, $instance, array('account'=>$account));
+function wf_field_is_transition_allowed($state, $instance, $target_state, $account=NULL) {
+  $transition_options = wf_field_get_current_transition_options($state, $instance, array('account' => $account));
   return isset($transition_options[$target_state]);
 }
 
@@ -295,22 +299,36 @@ function wf_field_transition_execute($node, $field_name, $target_state, $options
   // referring to valid field instance?
   $instance = _wf_field_get_wf_field_instance('node', $field_name, $node->type);
   if (!$instance) {
-    // return false, if we can't find an appropriate field_instance
-    return false;
+    // return FALSE, if we can't find an appropriate field_instance
+    return FALSE;
   }
   
   // is transition allowed? 
   // @todo: execute a transition as a different user (even user 1?) and pass that into this.
   if (!wf_field_is_transition_allowed($node, $instance, $target_state)) {
-    return false;
+    return FALSE;
   }
   
   // @todo: check whether we want to have a new revision in that case: $node->revision = 1;
   $node->{$field_name}['und'][0]['wf_state'] = $target_state;
   try {
     node_save($node);
-    return true; 
+    return TRUE; 
   } catch (Exception $e) {
-    return false;
+    return FALSE;
   }
+}
+
+
+function _wf_field_get_all_grouped_transitions($node) {
+  $instances = _wf_field_get_all_instances('node', $node->type);
+  $grouped_transitions = array();
+  foreach ($instances as $k => $instance) {
+    $trans = wf_field_get_current_transition_options($node, $instance);
+    if (sizeof($trans)) {
+      $grouped_transitions[$k]['transitions'] = $trans;
+      $grouped_transitions[$k]['instance'] = $instance;
+    } 
+  }
+  return $grouped_transitions;
 }

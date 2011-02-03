@@ -1,5 +1,5 @@
 <?php
-// $Id: wf_field.module,v 1.9 2010/10/14 20:18:42 rfay Exp $
+// $Id$
 
 /**
  * @file
@@ -51,6 +51,11 @@ function wf_field_permission() {
       'title' => t('@field_name: all transitions', array('@field_name' => $instance['field_name']))
     );
   }
+  // administer wf_field
+  $permissions['wf_field administer'] = array(
+    'title' => t('Administer wf_field configuration')
+  );
+  
   return $permissions;
 }
 
@@ -110,22 +115,22 @@ function wf_field_field_instance_settings_form($field, $instance) {
       '#collapsed' => sizeof($transitions) == 0,
       '#collapsible'  => TRUE,
       '#description' => t('Provide named workflow transitions or disable transition by leaving the transition field blank; all enabled/default transitions will have permissions in the !permissions-table.',
-    array('!permissions-table' => l('permissions table', 'admin/user/permissions'))),
+      array('!permissions-table' => l('permissions table', 'admin/user/permissions'))),
     );
 
     foreach ($transitions as $key => $transition) {
       if (!$transition['disabled']) {
         $label = $transition['full_label'] ? $transition['full_label'] : $transition['default_label'];
         $description = t('To disable transition empty field. You can give this transition a name, or leave &lt;default&gt; as a placeholder for automatic "FROM_STATE -> TO_STATE" transition labels.');
-      } else {
+      } 
+      else {
         $label = $transition['default_label'];
         $description = t('Transition disabled. Give transition a name (or &lt;default&gt;) to enable transition.');
       }
-      $field_key = $key;
-      $form['wf_settings']['wf_transitions'][$field_key] = array(
+      $form['wf_settings']['wf_transitions'][$key] = array(
         '#type' => 'textfield',
-        '#title' => $label,
-        '#default_value' => (isset( $settings['wf_settings']['wf_transitions'][$field_key])) ?  $settings['wf_settings']['wf_transitions'][$field_key] : '<default>',
+        '#title' => check_plain($label),
+        '#default_value' => (isset( $settings['wf_settings']['wf_transitions'][$key])) ?  $settings['wf_settings']['wf_transitions'][$key] : '<default>',
         '#description' => $description,
         '#parent' => 'transitions'
       ); 
@@ -348,7 +353,7 @@ function wf_field_node_update($node) {
     if ( $old_value != $new_value ) {
       $author = user_load($node->uid);
       
-      $vars = array('field_instance'=>$instance, 'old_value'=>$old_value, 'new_value'=>$new_value, 'author'=>$author, 'node'=>$node, 'unsaved_node'=>$node, 'user'=>$user);
+      $vars = array('field_instance' => $instance, 'old_value' => $old_value, 'new_value' => $new_value, 'author' => $author, 'node' => $node, 'unsaved_node' => $node, 'user' => $user);
       
       $responses = module_invoke_all('wf_field_before_transition_rules', $node, $instance, $vars);
       // @todo: check for WF_FIELD_DENY in order to abort a transition
@@ -404,14 +409,14 @@ function wf_field_button_widget_hidden_validate($element, &$form_state) {
 function wf_field_block_info() {
   // List blocks.
   $blocks['wf_field_trigger_transition'] = array(
-  	'info' => t('WF Field transition block'),
+    'info' => t('WF Field transition block'),
   );
   return $blocks;
 }
 
 /**
- * Display block
- * @param unknown_type $delta
+ * Implements hook_block_view.
+ * @param string $delta
  */
 function wf_field_block_view($delta = '') {
   switch ($delta) {
@@ -420,24 +425,14 @@ function wf_field_block_view($delta = '') {
       $node = menu_get_object('node');
       if (is_object($node)) { 
         module_load_include('inc', 'wf_field');
-        $instances = _wf_field_get_all_instances('node', $node->type);
-        if (sizeof($instances)) {
-          $grouped_transitions = array();
-          foreach ($instances as $k=>$instance) {
-            $trans = wf_field_get_current_transition_options($node, $instance);;
-            if (sizeof($trans)) {
-              $grouped_transitions[$k]['transitions'] = $trans;
-              $grouped_transitions[$k]['instance'] = $instance;
-            } 
-          }
-          // @todo: include an edit-link if the user can edit this node? 
-          if (sizeof($grouped_transitions)) {
-            $block['subject'] = t('Transitions');
-            // @todo: either link to a confirm form or directly
-            $confirm_form = false;
-            $block['content'] = theme('wf_field_transition_block', array('node'=>$node, 'grouped_transitions'=>$grouped_transitions, 'confirm_form'=>$confirm_form) );
-            return $block;
-          }
+        $grouped_transitions = _wf_field_get_all_grouped_transitions($node);
+        // @todo: include an edit-link if the user can edit this node? 
+        if (sizeof($grouped_transitions)) {
+          $block['subject'] = t('Transitions');
+          // return either link to a confirm form or a CSRF-safe link
+          $confirm_form = variable_get('wf_field_trigger_transition_block_use_confirmation_form', FALSE);
+          $block['content'] = theme('wf_field_transition_block', array('node' => $node, 'grouped_transitions' => $grouped_transitions, 'confirm_form' => $confirm_form) );
+          return $block;
         }
       }
       break;
@@ -451,7 +446,7 @@ function wf_field_theme() {
   return array(
     'wf_field_transition_block' => array(
       'variables' => array('node' => NULL, 'grouped_transitions' => array() ),
-  		'file' => 'wf_field.theme.inc'
+      'file' => 'wf_field.theme.inc'
     ),
   ); 
 } 
@@ -469,6 +464,15 @@ function wf_field_menu() {
     'access arguments' => array(1, 3, 4),
     'type' => MENU_CALLBACK,
     'file' => 'wf_field.pages.inc',
+  );
+  $items['admin/config/workflow/wf_field'] = array(
+    'title' => 'Workflow Field Settings',
+    'description' => 'Configure wf_field settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('wf_field_admin_settings'),
+    'access arguments' => array('wf_field configure'),
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'wf_field.admin.inc',
   );
   return $items;
 }

@@ -1,6 +1,14 @@
 <?php
+// $Id$
+
 /**
- * Form builder; Form for confirming a transition
+ * @file
+ *
+ * Page callbacks.
+ */
+
+/**
+ * Form builder; Form for confirming a transition triggering
  *
  * @param $node
  *   $node
@@ -28,10 +36,11 @@ function wf_field_trigger_transition($form, $form_state, $node, $field_name, $ta
   if ( isset($_REQUEST['token']) && $_REQUEST['token']) {
     if ( drupal_get_token($_GET['q']) == $_REQUEST['token'] ) {
       module_load_include('inc', 'wf_field');
-      wf_field_transition_execute($node, $field_name, $target_state, array('access_check'=>false) );
-      drupal_goto( $_REQUEST['destination'] );
+      wf_field_transition_execute($node, $field_name, $target_state, array('access_check' => FALSE) );
+      drupal_goto( isset($_REQUEST['destination']) ? $_REQUEST['destination'] : null );
     }
-  } else {
+  } 
+  else {
     $form_state['node'] = $node;
     $form_state['field_name'] = $field_name;
     $form_state['target_state'] = $target_state;
@@ -40,9 +49,9 @@ function wf_field_trigger_transition($form, $form_state, $node, $field_name, $ta
     
     return confirm_form(
         $form,
-        t('Please confirm the transition %transition_label', array('%transition_label'=>$transition_label)),
-        drupal_parse_url( $_REQUEST['destination'] ),
-        t('Do you want to execute the workflow transition %transition_label on !title?', array('!title'=>l($node->title, 'node/' . $node->nid), '%transition_label'=>$transition_label)),
+        t('Please confirm the transition %transition_label', array('%transition_label' => $transition_label)),
+        isset($_REQUEST['destination']) ? drupal_parse_url( $_REQUEST['destination'] ) : '',
+        t('Do you want to execute the workflow transition %transition_label on !title?', array('!title' => l($node->title, 'node/' . $node->nid), '%transition_label' => $transition_label)),
         $transition_label,  t('Cancel')
       );
   }

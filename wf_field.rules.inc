@@ -18,7 +18,7 @@ function wf_field_rules_event_info() {
   // Build up all the possible events for the workflow fields.
   $events = array();
   foreach ($field_instances as $instance) {
-    $transitions = wf_field_get_transitions( null, $instance, array('all_transitions' => TRUE, 'ignore_permissions' => TRUE, 'complete_info' => TRUE) );
+    $transitions = wf_field_get_transitions( NULL, $instance, array('all_transitions' => TRUE, 'ignore_permissions' => TRUE, 'complete_info' => TRUE) );
     foreach ($transitions as $key => $transition) {
       if (!$transition['disabled']) {
         $events['wf_field_transition_' . $instance['field_name'] . '_' . $key] = array(

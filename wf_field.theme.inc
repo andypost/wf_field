@@ -1,4 +1,12 @@
 <?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Theming functions
+ */
+
 /**
  * Returns HTML for a list of recent comments to be displayed in the comment block.
  *
@@ -16,14 +24,15 @@ function theme_wf_field_transition_block( &$variables ) {
       if (!$confirm_form) {
         $query['token'] = drupal_get_token($url) ;
       }      
-      $items[] =
-        l( $transition_label, $url, array('query'=>$query) );
+      $items[] = l( $transition_label, $url, array('query' => $query) );
     }
   }
 
   if ($items) {
-    $x = theme('item_list', array('items' => $items));
-    return $x;
+    return array(
+    	'#theme' => 'item_list',
+      '#items' => $items,
+    ); 
   }
   else {
     return t('No transitions available.');
