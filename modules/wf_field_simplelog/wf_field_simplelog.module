@@ -2,7 +2,20 @@
 /**
  * Implements hook_wf_field_before_transition
  */
-function wf_field_simplelog_wf_field_after_transition_rules($node, $instance, $params=array() ) {
+function wf_field_simplelog_wf_field_before_transition_rules($entity_type, $entity, $field, $instance, $langcode, $items, $params=array() ) {
 	// write the old and new node in to the log file
-	
+	if ( module_exists('devel') ) {
+		dpm($entity_type, 'Entity type - before transition rules');
+	}
+	watchdog('wf_field_simplelog', "before transition rules");
+	// var_dump( $node, "Before transition rules");
+}
+
+function wf_field_simplelog_wf_field_after_transition_rules($entity_type, $entity, $field, $instance, $langcode, $items, $params=array() ) {
+  // write the old and new node in to the log file
+if ( module_exists('devel') ) {
+    dpm($entity_type, 'Entity type - after transition rules');
+  }
+	watchdog('wf_field_simplelog', "after transition rules");
+	// var_dump( $node, "After transition rules");
 }
