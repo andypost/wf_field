@@ -332,11 +332,11 @@ function wf_field_transition_execute($node, $field_name, $target_state, $options
 }
 
 
-function _wf_field_get_all_grouped_transitions($node) {
-  $instances = _wf_field_get_all_instances('node', $node->type);
+function _wf_field_get_all_grouped_transitions($entity, $entity_type, $bundle_name) {
+  $instances = _wf_field_get_all_instances($entity_type, $bundle_name);
   $grouped_transitions = array();
   foreach ($instances as $k => $instance) {
-    $trans = wf_field_get_current_transition_options($node, $instance);
+    $trans = wf_field_get_current_transition_options($entity, $instance);
     if (sizeof($trans)) {
       $grouped_transitions[$k]['transitions'] = $trans;
       $grouped_transitions[$k]['instance'] = $instance;

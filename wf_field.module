@@ -451,7 +451,7 @@ function wf_field_block_view($delta = '') {
       $node = menu_get_object('node');
       if (is_object($node)) { 
         module_load_include('inc', 'wf_field');
-        $grouped_transitions = _wf_field_get_all_grouped_transitions('node', $node);
+        $grouped_transitions = _wf_field_get_all_grouped_transitions($node, 'node', $node->type);
         // @todo: include an edit-link if the user can edit this node? 
         if (sizeof($grouped_transitions)) {
           $block['subject'] = t('Transitions');
