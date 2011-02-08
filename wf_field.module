@@ -38,6 +38,8 @@ function wf_field_permission() {
   $instances = _wf_field_get_all_instances();
   // Build up a clunky list of all possible transitions.
   $permissions = array();
+  // @todo: currently the events are *NOT* entity-type specific, clashes could/can occur.
+  // as different instances could have the same field_name but different configuration (i.e. instance<->field settings).
   foreach ($instances as $instance) {
     $transitions = wf_field_get_transitions(null, $instance, array('all_transitions' => TRUE, 'ignore_permissions' => TRUE, 'complete_info' => TRUE));
     foreach ( (array) $transitions as $key => $info ) {
@@ -121,11 +123,11 @@ function wf_field_field_instance_settings_form($field, $instance) {
     foreach ($transitions as $key => $transition) {
       if (!$transition['disabled']) {
         $label = $transition['full_label'] ? $transition['full_label'] : $transition['default_label'];
-        $description = t('To disable transition empty field. You can give this transition a name, or leave &lt;default&gt; as a placeholder for automatic "FROM_STATE -> TO_STATE" transition labels.');
+        $description = t('You can name this transition - to disable this transition empty the field.');
       } 
       else {
         $label = $transition['default_label'];
-        $description = t('Transition disabled. Give transition a name (or &lt;default&gt;) to enable transition.');
+        $description = t('Transition has been disabled. No permissions or rules events will be exposed for this transition. To (re-)enable the transition give the transition a name.');
       }
       $form['wf_settings']['wf_transitions'][$key] = array(
         '#type' => 'textfield',
@@ -324,54 +326,93 @@ function wf_field_field_widget_error($element, $error, $form, &$form_state) {
   }
 }
 
+function wf_field_field_load($entity_type, $entities, $field, $instances, $langcode, &$items, $age) {
+  // store 
+  foreach ($entities as $id => $entity) {
+    foreach ($items[$id] as $delta => $item) {
+      // Only process items with a cacheable format, the rest will be handled
+      // by formatters if needed.
+      $items[$id][$delta]['wf_state_old'] = isset($item['wf_state']) ?  $item['wf_state'] : NULL;
+    }
+  }
+}
+
 function wf_field_field_update($entity_type, $entity, $field, $instance, $langcode, &$items) {
-  switch ($entity_type) {
-		case 'node':
-			// @todo: better way to find the *old* state
-  		$unsaved_node = node_load($entity->nid);
-  		// 
-  		$node = $entity;
-  		// retrieve old and new value
-	    $old_value = isset($unsaved_node->{$instance['field_name']}[ $langcode ][0]['wf_state']) ? $unsaved_node->{$instance['field_name']}['und'][0]['wf_state'] : NULL;
-	    $new_value = $entity->{$instance['field_name']}[ $langcode ][0]['wf_state'];
-	    
-	    if ( $old_value != $new_value ) {
-	    	global $user;
-	    	// load the author
-        $author = user_load($entity->uid);
-	      $vars = array('field_instance' => $instance, 'old_value' => $old_value, 'new_value' => $new_value, 'author' => $author, 'node' => $entity, 'unsaved_node' => $unsaved_node, 'author'=>$author, 'user' => $user, 'items' => $items);
-	      // @todo: let's provide 
-	      $responses = module_invoke_all('wf_field_before_transition_rules', $entity_type, $entity, $field, $instance, $langcode, $items, $vars);
-	      // @todo: check for WF_FIELD_DENY in order to abort a transition before the rules get called
-	      
-	      // The first four lines of the expression below is the name of the
-	      // workflow event, on the form workflow_fieldname_{FROMSTATE}_{TOSTATE}.
-	      rules_invoke_event(
-	        'wf_field_transition_' . $instance['field_name'] . '_' . $old_value . '_' . $new_value, $node, $unsaved_node, $user, $author
-	      );
-	      
-	      // invoke outbound events 
-	      if (isset($old_value)) {
-	        rules_invoke_event(
-	          'wf_field_out_' . $instance['field_name'] . '_' . $old_value, $node, $unsaved_node, $user, $author
-	        );
-	      }
-	      // invoke inbound events
-	      rules_invoke_event(
-	        'wf_field_in_' . $instance['field_name'] . '_' . $new_value, $node, $unsaved_node, $user, $author
-	      );
-	      // "any transition"-events per instance/field_name
-	      rules_invoke_event(
-	        'wf_field_any_' . $instance['field_name'] , $node, $unsaved_node, $user, $author
-	      );
-	      
-	      $responses = module_invoke_all('wf_field_after_transition_rules', $entity_type, $entity, $field, $instance, $langcode, $items, $vars);
-	      // "rollback" probably doesn't make sense any more, too many things have happened ...  
-	      // We'll never be able to ensure "undoing"/rolling back rule events, that ship has sailed ...  
-	    }			
-			break;
-	}
+  $new_value = $entity->{$instance['field_name']}[ $langcode ][0]['wf_state'];
+  
+  // @todo: use 
+  if (!isset($items[0]['wf_state_old'])) {
+    $eid = entity_id($entity_type, $entity);
+    $es = entity_load($entity_type, array($eid) );
+    $unsaved_entity = $es[ $eid ];
+    $old_value = isset($unsaved_entity->{$instance['field_name']}[ $langcode ][0]['wf_state']) ? $unsaved_entity->{$instance['field_name']}['und'][0]['wf_state'] : NULL;
+  } else {
+    $old_value = $items[0]['wf_state_old'];  
+  }
+  //
+  
+  // @todo: better way to find the *old* state
+	// retrieve old and new value
+	
+  if ( $old_value != $new_value ) {
+  	// basic info about this
+    $vars = array(
+    	'old_value' => $old_value, 
+    	'new_value' => $new_value, 
+    );
+    // let's provide a possibility to manipulate and abort! 
+    $responses = module_invoke_all('wf_field_before_transition_rules', $entity_type, $entity, $field, $instance, $langcode, $items, $vars);
+    // @todo: verify this is the best way to do this
+    if (is_array($responses) && sizeof($responses) && in_array(WF_FIELD_DENY, $responses)) {
+      // @todo: proper d7 exceptions how to do these.
+      throw new Exception( t('Transition has been aborted') );
+      return false;
+    }
+    // run the transition rules 
+    $responses = module_invoke_all('wf_field_transition_rules', $entity_type, $entity, $field, $instance, $langcode, $items, $vars);
+    // run "after" transition rules 
+    $responses = module_invoke_all('wf_field_after_transition_rules', $entity_type, $entity, $field, $instance, $langcode, $items, $vars);
+    // "rollback" probably doesn't make sense any more, too many things have happened ...  
+    // We'll never be able to ensure "undoing"/rolling back rule events, that ship has sailed ...  
+  }
 } 
+
+/**
+ * Implement hook_wf_field_transition_rules() for nodes.
+ * @see file wf_field.rules.inc for the event declarations
+ */
+function wf_field_wf_field_transition_rules($entity_type, $entity, $field, $instance, $langcode, $items, $vars) {
+  switch ($entity_type) {
+    case 'node': 
+      global $user;
+      $node = $entity;
+      
+      $author = user_load($entity->uid);      
+      // The first four lines of the expression below is the name of the
+      // workflow event, on the form wf_field_transition_node_fieldname_{FROMSTATE}_{TOSTATE}.
+      rules_invoke_event(
+        'wf_field_transition_' . $entity_type. '_' . $instance['field_name'] . '_' . $vars['old_value'] . '_' . $vars['new_value'], $entity, $user, $author
+      );
+      
+      // invoke outbound events 
+      if (isset($vars['old_value'])) {
+        rules_invoke_event(
+          'wf_field_out_'  . $entity_type. '_' . $instance['field_name'] . '_' . $vars['old_value'], $entity, $user, $author
+        );
+      }
+      // invoke inbound events
+      rules_invoke_event(
+        'wf_field_in_' .  $entity_type. '_' .  $instance['field_name'] . '_' . $vars['new_value'], $entity, $user, $author
+      );
+      // "any transition"-events per instance/field_name
+      rules_invoke_event(
+        'wf_field_any_' .  $entity_type. '_' .  $instance['field_name'] , $entity, $user, $author
+      );
+      break;
+  }  
+}
+
+
 
 /**
  * Passes the value into the hidden field if a transition-submit button has been "clicked"
@@ -410,7 +451,7 @@ function wf_field_block_view($delta = '') {
       $node = menu_get_object('node');
       if (is_object($node)) { 
         module_load_include('inc', 'wf_field');
-        $grouped_transitions = _wf_field_get_all_grouped_transitions($node);
+        $grouped_transitions = _wf_field_get_all_grouped_transitions('node', $node);
         // @todo: include an edit-link if the user can edit this node? 
         if (sizeof($grouped_transitions)) {
           $block['subject'] = t('Transitions');
@@ -419,7 +460,7 @@ function wf_field_block_view($delta = '') {
           $block['content'] = theme('wf_field_transition_block', array('node' => $node, 'grouped_transitions' => $grouped_transitions, 'confirm_form' => $confirm_form) );
           return $block;
         }
-      }
+      } 
       break;
   }
 }

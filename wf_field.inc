@@ -76,7 +76,7 @@ function _wf_field_has_transition_label($from, $to, $instance) {
  */
 function _wf_field_get_all_instances($entity_type=NULL, $bundle_name=NULL, $field_name=NULL) {
   $instances = array();
-  if (!isset($entity) && !isset($bundle_name)) {
+  if (!isset($entity_type) && !isset($bundle_name)) {
     $v = field_info_instances($entity_type, $bundle_name);
     foreach ($v as $entity_type => $bundles) {
       foreach ($bundles as $bundle) {
@@ -89,6 +89,17 @@ function _wf_field_get_all_instances($entity_type=NULL, $bundle_name=NULL, $fiel
       }
     }
   }
+  elseif ($entity_type && !$bundle_name) {
+    $bundles = field_info_instances($entity_type);
+    foreach ($bundles as $bundle) {
+      foreach ($bundle as $instance) {
+        // @todo: there must be a way to filter this?
+        if (isset($instance['settings']['wf_settings'])) {
+          $instances[] = $instance;
+        }
+      }
+    }
+  }
   elseif ($entity_type && $bundle_name) {
     $bundle = field_info_instances($entity_type, $bundle_name);
     foreach ($bundle as $instance) {
@@ -97,7 +108,7 @@ function _wf_field_get_all_instances($entity_type=NULL, $bundle_name=NULL, $fiel
         $instances[] = $instance;
       }
     }
-  }
+  }  
   return $instances;
 }
 
@@ -332,4 +343,56 @@ function _wf_field_get_all_grouped_transitions($node) {
     } 
   }
   return $grouped_transitions;
+}
+
+/**
+ * Returns an array with all events emitted for all instances of wf_field for a given entity_type
+ *  
+ * @see also @file wf_field.rules.inc 
+ * 
+ * @param unknown_type $entity_type
+ * @param unknown_type $module
+ * @param unknown_type $variables
+ */
+function _wf_field_build_entity_transtion_rules($entity_type, $module, $variables=array() ) {
+  $field_instances = _wf_field_get_all_instances( $entity_type );
+  // Build up all the possible events for the workflow fields.
+  $events = array();
+  foreach ($field_instances as $instance) {
+    $transitions = wf_field_get_transitions( NULL, $instance, array('all_transitions' => TRUE, 'ignore_permissions' => TRUE, 'complete_info' => TRUE) );
+    foreach ($transitions as $key => $transition) {
+      if (!$transition['disabled']) {
+        $events['wf_field_transition_' . $entity_type . '_' . $instance['field_name'] . '_' . $key] = array(
+          'group' => t('Workflow Field'),
+          'label' => t('@entity_type: @field - Transition: !transition', array('@entity_type'=>$entity_type, '@field' => $instance['field_name'], '!transition' => $transition['full_label'])),
+          'module' => $module,
+          'variables' => $variables
+        );
+      }
+    }
+    // on entering & on leaving states
+    $states = _wf_field_get_states($instance);
+    foreach ($states as $key => $label ) {
+      $events['wf_field_in_' . $entity_type . '_' . $instance['field_name'] . '_' . $key] = array(
+        'group' => t('Workflow Field'),
+        'label' => t('@entity_type: @field - On entering state (=inward): !label', array('@entity_type'=>$entity_type, '@field' => $instance['field_name'], '!label' => $label)),
+        'module' => $module,
+        'variables' => $variables
+      );
+      $events['wf_field_out_' . $entity_type . '_' . $instance['field_name'] . '_' . $key] = array(
+        'group' => t('Workflow Field'),
+        'label' => t('@entity_type: @field - On leaving state (=outward): !label', array('@entity_type'=>$entity_type, '@field' => $instance['field_name'], '!label' => $label)),
+        'module' => $module,
+        'variables' => $variables
+      );
+    }
+    // one rules event that will be triggered on "any" transition
+    $events['wf_field_any_' . $entity_type . '_' . $instance['field_name'] ] = array(
+      'group' => t('Workflow Field'),
+      'label' => t('@entity_type: @field - on any transition', array('@entity_type'=>$entity_type, '@field' => $instance['field_name'])),
+      'module' => $module,
+      'variables' => $variables
+    );
+  }
+  return $events;
 }

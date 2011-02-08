@@ -1,5 +1,5 @@
 ; $Id$
-name = Workflow Field
+name = Workflow Field (wf_field)
 description = Field-based workflow state relying on the rules engine for reactions etc. 
 core = 7.x
 dependencies[] = rules

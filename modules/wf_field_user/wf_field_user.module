@@ -1,0 +1,32 @@
+<?php
+/**
+ * Implement hook_wf_field_transition_rules() for nodes.
+ * @see file wf_field_user.rules.inc for the event declarations
+ */
+function wf_field_user_wf_field_transition_rules($entity_type, $entity, $field, $instance, $langcode, $items, $vars) {
+  switch ($entity_type) {
+    case 'user': 
+      global $user;
+      // The first four lines of the expression below is the name of the
+      // workflow event, on the form wf_field_transition_node_fieldname_{FROMSTATE}_{TOSTATE}.
+      rules_invoke_event(
+        'wf_field_transition_' . $entity_type. '_' . $instance['field_name'] . '_' . $vars['old_value'] . '_' . $vars['new_value'], $entity, $user
+      );
+      
+      // invoke outbound events 
+      if (isset($vars['old_value'])) {
+        rules_invoke_event(
+          'wf_field_out_'  . $entity_type. '_' . $instance['field_name'] . '_' . $vars['old_value'], $entity, $user
+        );
+      }
+      // invoke inbound events
+      rules_invoke_event(
+        'wf_field_in_' .  $entity_type. '_' .  $instance['field_name'] . '_' . $vars['new_value'], $entity, $user
+      );
+      // "any transition"-events per instance/field_name
+      rules_invoke_event(
+        'wf_field_any_' .  $entity_type. '_' .  $instance['field_name'] , $entity, $user
+      );
+      break;
+  }  
+}
