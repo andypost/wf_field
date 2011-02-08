@@ -191,8 +191,9 @@ function wf_field_get_transitions($state_or_node, $field_name_or_instance, $opti
       // Exclude the case where from and to state are the same.
       if ( $from_number != $to_number && ( $all_transitions || _wf_field_has_transition_label($from_number, $to_number, $instance) ) ) {
         $label = _wf_field_has_transition_label($from_number, $to_number, $instance);
-        if ( !$label || $label == '<default>' || $no_transition_labels ) {
-          $label = t('@from_state -> @to_state', array('@from_state' => $from_state, '@to_state' => $to_state));
+        $default_label = t('@from_state -> @to_state', array('@from_state' => $from_state, '@to_state' => $to_state));
+        if ( !$label || $no_transition_labels ) {
+          $label = $default_label; 
         }
         $key = 'wf_field ' . $instance['field_name'] . ' ' . $from_number . '_' . $to_number;
         

@@ -130,7 +130,7 @@ function wf_field_field_instance_settings_form($field, $instance) {
       $form['wf_settings']['wf_transitions'][$key] = array(
         '#type' => 'textfield',
         '#title' => check_plain($label),
-        '#default_value' => (isset( $settings['wf_settings']['wf_transitions'][$key])) ?  $settings['wf_settings']['wf_transitions'][$key] : '<default>',
+        '#default_value' => (isset( $settings['wf_settings']['wf_transitions'][$key])) ?  $settings['wf_settings']['wf_transitions'][$key] : $transition['default_label'],
         '#description' => $description,
         '#parent' => 'transitions'
       ); 
