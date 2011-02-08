@@ -44,15 +44,17 @@ function wf_field_trigger_transition($form, $form_state, $node, $field_name, $ta
     $form_state['node'] = $node;
     $form_state['field_name'] = $field_name;
     $form_state['target_state'] = $target_state;
-  
-    $transition_label = wf_field_get_current_state_label($target_state, $instance );
+    $state_label = wf_field_get_current_state_label($target_state, $instance );
+    $info = wf_field_get_current_transition_options($node, $instance, array('complete_info'=>true));
+    $transition_label = $info[ $target_state ]['label'];
+    
     
     return confirm_form(
         $form,
         t('Please confirm the transition %transition_label', array('%transition_label' => $transition_label)),
         isset($_REQUEST['destination']) ? drupal_parse_url( $_REQUEST['destination'] ) : '',
-        t('Do you want to execute the workflow transition %transition_label on !title?', array('!title' => l($node->title, 'node/' . $node->nid), '%transition_label' => $transition_label)),
-        $transition_label,  t('Cancel')
+        t('Do you want to transition !title to the state %state_label?', array('!title' => l($node->title, 'node/' . $node->nid), '%state_label' => $state_label)),
+        t('@transition_label @title', array('@transition_label'=>$transition_label, '@title'=>$node->title) ),  t('Cancel')
       );
   }
 }
