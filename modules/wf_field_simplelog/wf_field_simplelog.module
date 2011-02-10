@@ -3,16 +3,16 @@
  * Implements hook_wf_field_before_transition_rules.
  */
 function wf_field_simplelog_wf_field_before_transition_rules($entity_type, $entity, $field, $instance, $langcode, $items, $vars=array() ) {
-	$params = array(
+  $params = array(
     'entity_type'=>$entity_type, 'entity'=>$entity, 'field'=>$field, 'instance'=>$instance, 'langcode'=>$langcode, 'items'=>$items, 'vars'=>$vars
   );
   if ( module_exists('devel') && user_access('wf_field_simplelog view debug messages') ) {
-		dpm(
-		  $params,
-		  'hook_wf_field_before_transition_rules'
-		);
-	}
-	watchdog('wf_field_simplelog', "hook_wf_field_before_transition_rules - " . print_r($params, true));
+    dpm(
+      $params,
+      'hook_wf_field_before_transition_rules'
+    );
+  }
+  watchdog('wf_field_simplelog', "hook_wf_field_before_transition_rules - " . print_r($params, true));
 }
 
 /**
@@ -23,12 +23,12 @@ function wf_field_simplelog_wf_field_after_transition_rules($entity_type, $entit
     'entity_type'=>$entity_type, 'entity'=>$entity, 'field'=>$field, 'instance'=>$instance, 'langcode'=>$langcode, 'items'=>$items, 'vars'=>$vars
   );
   if ( module_exists('devel') && user_access('wf_field_simplelog view debug messages') ) {
-		dpm(
-		  $params,
-		  'hook_wf_field_after_transition_rules'
-		);
-	}
-	watchdog('wf_field_simplelog', "hook_wf_field_after_transition_rules" . print_r($params, true));
+    dpm(
+     $params,
+     'hook_wf_field_after_transition_rules'
+    );
+  }
+  watchdog('wf_field_simplelog', "hook_wf_field_after_transition_rules" . print_r($params, true));
 }
 
 function wf_field_simplelog_permissions() {
