@@ -10,6 +10,7 @@ function wf_field_simpleaccess_node_access($node, $op, $account) {
   if (!is_object($node)) {
     return NODE_ACCESS_IGNORE;
   }
+  
   // check for operation 
   switch ($op) {
     case 'update':
@@ -22,7 +23,19 @@ function wf_field_simpleaccess_node_access($node, $op, $account) {
       }
       // check for available transitions
       $has_transitions = false;
+      global $user;
       foreach ($instances as $key=>$instance) {
+        $entity_type = 'node';
+        
+        $base_key = 'wf_field_simpleaccess ' . $entity_type . '_' . $instance['field_name'];
+        $state_id = _wf_field_get_current_workflow_state($node, $instance);
+        
+        // yes, we are abusing the permission system 
+        // @todo: do proper administrator role checking
+        if ( $user->uid !== 1 && user_access( $base_key . '_' . $state_id . ' deny_edit' ) ) {
+          return NODE_ACCESS_DENY;
+        } 
+        
         $options = wf_field_get_current_transition_options($node, $instance);
         if (sizeof($options)) {
           $has_transitions = true;
@@ -34,21 +47,49 @@ function wf_field_simpleaccess_node_access($node, $op, $account) {
       } 
       return NODE_ACCESS_IGNORE;
       break;
+    case 'view':
+      module_load_include('inc', 'wf_field');
+      // check if we actually have a wf_state-field in this node
+      $instances = _wf_field_get_all_instances('node', $node->type);
+      if (!is_array($instances)||!sizeof($instances)) {
+        return NODE_ACCESS_IGNORE;
+      }
+      global $user;
+      foreach ($instances as $key=>$instance) {
+        $entity_type = 'node';
+        $base_key = 'wf_field_simpleaccess ' . $entity_type . '_' . $instance['field_name'];
+        $state_id = _wf_field_get_current_workflow_state($node, $instance);
+        // yes, we are abusing the permission system 
+        // @todo: do proper administrator role checking
+        if ( $user->uid !== 1 && user_access( $base_key . '_' . $state_id . ' deny_view' ) ) {
+          return NODE_ACCESS_DENY;
+        } 
+      }
+      break;   
   }
 }
 
 
-function wf_field_simpleaccess_perm() {
-  // @todo: 
-  // deny from all?  -> allow 
-  // allow from all?  -> deny 
-  
+function wf_field_simpleaccess_permissions() {
+  // @todo:  
   // explicitly deny viewing rights based on state   
   // explicitly deny author editing right based on state
-  // grant author editing right based on state 
-  
-}
-
-function wf_field_simpleaccess_form_alter() {
-  
+  // grant author editing right based on state
+  $entity_type = 'node';
+  $instances = _wf_field_get_all_instances( $entity_type );
+  $permissions = array(); 
+  foreach ($instances as $instance) {
+    $states = _wf_field_get_states($instance, $options);
+    $base_key = 'wf_field_simpleaccess ' . $entity_type . '_' . $instance['field_name'];
+      
+    foreach ($states as $state_id=>$state_label) {
+      $permissions[ $base_key .  '_' . $state_id . ' deny_view'] = array(
+        'title' => t('Node @field_name: state @state_label - force denying view', array('@field_name' => $instance['field_name'], '@state_label' => $state_label))
+      ); 
+      $permissions[ $base_key .  '_' . $state_id . ' deny_edit'] = array(
+        'title' => t('Node @field_name: state @state_label - force denying update/delete', array('@field_name' => $instance['field_name'], '@state_label' => $state_label))
+      );
+    }
+  }
+  return $permissions;
 }

@@ -1,0 +1,6 @@
+; $Id$
+name = wf_field_taxonomy
+description = taxonomy-entity integration    
+core = 7.x
+package = wf_field
+dependencies[] = wf_field

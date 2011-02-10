@@ -8,7 +8,7 @@
  */
 
 /**
- * Form builder; Form for confirming a transition triggering
+ * Form confirming a transition triggering or redirecting
  *
  * @param $node
  *   $node
@@ -48,10 +48,9 @@ function wf_field_trigger_transition($form, $form_state, $node, $field_name, $ta
     $info = wf_field_get_current_transition_options($node, $instance, array('complete_info'=>true));
     $transition_label = $info[ $target_state ]['label'];
     
-    
     return confirm_form(
         $form,
-        t('Please confirm the transition %transition_label', array('%transition_label' => $transition_label)),
+        t('Confirm transition %transition_label', array('%transition_label' => $transition_label)),
         isset($_REQUEST['destination']) ? drupal_parse_url( $_REQUEST['destination'] ) : '',
         t('Do you want to transition !title to the state %state_label?', array('!title' => l($node->title, 'node/' . $node->nid), '%state_label' => $state_label)),
         t('@transition_label @title', array('@transition_label'=>$transition_label, '@title'=>$node->title) ),  t('Cancel')

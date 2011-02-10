@@ -11,6 +11,7 @@ Features:
 - Two widgets: one option field, one time "Transition-Buttons" (and hidden field)   
 - minimal formatter w/ minimally useful css class wrapping (.wf-field-state-{STATE} and .wf-field-{field-name}-state-{state}) 
 - added an optional second "passive" label for each state to provide for an "active" and "passive" description of the state (i.e. 3|Publication|Published) 
+- block w/ transition links (w/ and w/o confirmation form) 
 
 Unsure / flaky:
 - Instance settings / field settings?
@@ -18,9 +19,8 @@ Unsure / flaky:
 - Validation of values & permission handling (not thoroughly tested)  
 - Cleanup - elegance some approaches are really clunky (or is that just drupal?)
 - Are the arguments passed/exposed to rules correctly (they don't show up in the arguments/context afterwards, might be me/d7)
+- Support for other entities: taxonomy and user as proof-of-concept 
 
-todo:
-- Support other entities - use "field_update_*"-hooks (or what they are called) instead of node-update-hooks to allow all entitities to have workflows
-- Disable mulitple values  
-- More widgets - a block w/ the action buttons? 
+Todo:
+- Disable multiple values
 - Better ui for workflow configuration

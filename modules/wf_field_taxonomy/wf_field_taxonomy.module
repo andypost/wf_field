@@ -1,11 +1,11 @@
 <?php
 /**
- * Implement hook_wf_field_transition_rules() for users.
+ * Implement hook_wf_field_transition_rules() for taxonomy terms.
  * @see file wf_field_user.rules.inc for the event declarations
  */
-function wf_field_user_wf_field_transition_rules($entity_type, $entity, $field, $instance, $langcode, $items, $vars) {
+function wf_field_taxonomy_wf_field_transition_rules($entity_type, $entity, $field, $instance, $langcode, $items, $vars) {
   switch ($entity_type) {
-    case 'user': 
+    case 'taxonomy_term': 
       global $user;
       // The first four lines of the expression below is the name of the
       // workflow event, on the form wf_field_transition_node_fieldname_{FROMSTATE}_{TOSTATE}.

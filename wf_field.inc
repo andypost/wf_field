@@ -396,3 +396,13 @@ function _wf_field_build_entity_transtion_rules($entity_type, $module, $variable
   }
   return $events;
 }
+
+
+function _wf_field_get_current_workflow_state($entity, $field_name_or_instance) {
+  if ( is_array($field_name_or_instance) ) {
+    $field_name = $field_name_or_instance['field_name'];
+  } else {
+    $field_name = $field_name_or_instance;
+  }
+  return isset($entity->{$field_name}['und'][0]['wf_state']) ? $entity->{$field_name}['und'][0]['wf_state'] : NULL;
+}

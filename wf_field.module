@@ -238,7 +238,7 @@ function wf_field_field_widget_info() {
 function wf_field_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
   // detect the default value form
   // @todo - a better way to do this?
-  $is_default_value_widget = ( isset($form['#type']) && $form['#type'] == 'fieldset' ) && $form['#title'] == 'Default value' ;
+  $is_default_value_widget = ( isset($form['#type']) && $form['#type'] == 'fieldset' ) && $form['#title'] == t('Default value') ;
 
   module_load_include('inc', 'wf_field');  
   
@@ -261,11 +261,11 @@ function wf_field_field_widget_form(&$form, &$form_state, $field, $instance, $la
   else {
     switch ($widget['type']) {
       case 'wf_field_buttons':
-        // no "include_no_change_option"
         $options = (array) wf_field_get_current_transition_options($value, $instance);
         // @todo: find a good "#weight"
         $weight = isset($form['actions']['submit']) ? $form['actions']['submit']['#weight'] + 1 : 100;
-
+        // this only works on the node-form 
+        
         // @todo: is this a good way of doing it?
         $transition_map = array();
         // and then the form buttons
