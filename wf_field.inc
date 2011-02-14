@@ -12,12 +12,21 @@
  * @param	array		field instance array
  * @param unknown_type $options  passive => TRUE - return (optional) passive label (i.e. Published instead of Publication)
  */
-function _wf_field_get_states($instance, $options=array()) {
-
-  if (!isset($instance['settings']['wf_settings']['wf_states']['text']  )) {
+function _wf_field_get_states($instance_or_fieldname, $options=array()) {
+  if (is_string($instance_or_fieldname)) {
+    $field = field_info_field($instance_or_fieldname);
+  }
+  elseif (!isset($instance_or_fieldname['field_id']) && isset($instance_or_fieldname['field_name'])) {
+    $field = field_info_field($instance_or_fieldname['field_name']);
+  } 
+  else {
+    $field = field_info_field_by_id($instance_or_fieldname['field_id']);
+  }
+  
+  if (!isset($field['settings']['wf_settings']['wf_states']['text']  )) {
     return FALSE;
   }
-  $raw_states = explode("\n", trim($instance['settings']['wf_settings']['wf_states']['text']  ));
+  $raw_states = explode("\n", trim($field['settings']['wf_settings']['wf_states']['text']  ));
 
   // do we want to return the "passive" expression (Published) instead of (Publication)
   $passive = isset($options['passive']) && $options['passive'];
@@ -27,7 +36,7 @@ function _wf_field_get_states($instance, $options=array()) {
   $states = array();
   foreach ($raw_states as $state) {
     $parts = explode('|', $state);
-    if ($parts[0]) {
+    if (strlen($parts[0])) {
       if ($passive && isset($parts[2])) {
         $states[$parts[0]] = trim( ($parts[2]) ? $parts[2] : trim( ($parts[1]) ? $parts[1] : $parts[0] ) );
       }
@@ -36,8 +45,31 @@ function _wf_field_get_states($instance, $options=array()) {
       }
     }
   }
-
   return $states;
+}
+
+/**
+ * Validate the workflow states definition string in the field instance settings.
+ * @param string $string
+ * @param array $options
+ * @return bool	  true if validate states string else false
+ */
+function _wf_field_validate_states_string($string, $options=array()) {
+  $raw_states = explode("\n", trim($string));
+  // Build an array of workflow states on the form (number => name of state).
+  // If no state name is given, use the state integer instead.
+  $states = array();
+  foreach ($raw_states as $state) {
+    $parts = explode('|', $state);
+    // if there isnt a state_id, or a duplicate-state id or a non integer 
+    if (!strlen($parts[0]) || isset($states[$parts[0]]) || ( (int) $parts[0] != $parts[0] )) {
+      return FALSE;
+    } 
+    else {
+      $states[$parts[0]] = $parts[1]; 
+    }
+  }
+  return TRUE;
 }
 
 /**
@@ -45,10 +77,17 @@ function _wf_field_get_states($instance, $options=array()) {
  * @param array $instance
  */
 function _wf_field_get_transition_labels($instance) {
-  if (!isset($instance['settings']['wf_settings']['wf_transitions'])) {
+  if (!isset($instance['field_id']) && isset($instance['field_name'])) {
+    $field = field_info_field($instance['field_name']);
+  } 
+  else {
+    $field = field_info_field_by_id($instance['field_id']);
+  }
+  
+  if (!isset($field['settings']['wf_settings']['wf_transitions'])) {
     return FALSE;
   }
-  return $instance['settings']['wf_settings']['wf_transitions'];
+  return $field['settings']['wf_settings']['wf_transitions'];
 }
 
 
@@ -56,14 +95,20 @@ function _wf_field_get_transition_labels($instance) {
  * Return the (named) transitions of an instance
  */
 function _wf_field_has_transition_label($from, $to, $instance) {
-  if (!isset($instance['settings']['wf_settings']['wf_transitions'][$from . '_' . $to])) {
+  if (!isset($instance['field_id']) && isset($instance['field_name'])) {
+    $field = field_info_field($instance['field_name']);
+  } 
+  else {
+    $field = field_info_field_by_id($instance['field_id']);
+  }
+  if (!isset($field['settings']['wf_settings']['wf_transitions'][$from . '_' . $to])) {
     return NULL;
   } 
-  elseif (!$instance['settings']['wf_settings']['wf_transitions'][$from . '_' . $to]) {
+  elseif (!$field['settings']['wf_settings']['wf_transitions'][$from . '_' . $to]) {
     return FALSE;
   }
   else {
-    return $instance['settings']['wf_settings']['wf_transitions'][$from . '_' . $to];
+    return $field['settings']['wf_settings']['wf_transitions'][$from . '_' . $to];
   }
 }
 
@@ -81,8 +126,9 @@ function _wf_field_get_all_instances($entity_type=NULL, $bundle_name=NULL, $fiel
     foreach ($v as $entity_type => $bundles) {
       foreach ($bundles as $bundle) {
         foreach ($bundle as $instance) {
+          $field = field_info_field_by_id($instance['field_id']);
           // @todo: there must be a way to filter this?
-          if (isset($instance['settings']['wf_settings'])) {
+          if (isset($field['settings']['wf_settings'])) {
             $instances[] = $instance;
           }
         }
@@ -93,8 +139,9 @@ function _wf_field_get_all_instances($entity_type=NULL, $bundle_name=NULL, $fiel
     $bundles = field_info_instances($entity_type);
     foreach ($bundles as $bundle) {
       foreach ($bundle as $instance) {
+        $field = field_info_field_by_id($instance['field_id']);
         // @todo: there must be a way to filter this?
-        if (isset($instance['settings']['wf_settings'])) {
+        if (isset($field['settings']['wf_settings'])) {
           $instances[] = $instance;
         }
       }
@@ -103,8 +150,9 @@ function _wf_field_get_all_instances($entity_type=NULL, $bundle_name=NULL, $fiel
   elseif ($entity_type && $bundle_name) {
     $bundle = field_info_instances($entity_type, $bundle_name);
     foreach ($bundle as $instance) {
+      $field = field_info_field_by_id($instance['field_id']);
       // @todo: there must be a way to filter this?
-      if (isset($instance['settings']['wf_settings'])) {
+      if (isset($field['settings']['wf_settings'])) {
         $instances[] = $instance;
       }
     }
@@ -121,7 +169,9 @@ function _wf_field_get_all_instances($entity_type=NULL, $bundle_name=NULL, $fiel
 function _wf_field_get_wf_field_instance($entity_type, $field_name, $bundle_name) {
   // hmm really the api is kinda weird w/ the order 
   $info = field_info_instance($entity_type, $field_name, $bundle_name);
-  return !$info['settings']['wf_settings'] ? NULL : $info;
+  $field = field_info_field($info['field_name']);
+  // this is a little whack; but we'll complete refactoring to field from instance in due course. 
+  return !isset($field['settings']['wf_settings']) ? NULL : $info;
 }
 
 
@@ -164,6 +214,7 @@ function wf_field_get_transitions($state_or_node, $field_name_or_instance, $opti
     // we cannot determine the instance
     return FALSE;
   }
+  
   // retrieve available states
   $states = _wf_field_get_states($instance);
   if (!is_array($states)) {
@@ -334,6 +385,7 @@ function wf_field_transition_execute($node, $field_name, $target_state, $options
 
 function _wf_field_get_all_grouped_transitions($entity, $entity_type, $bundle_name) {
   $instances = _wf_field_get_all_instances($entity_type, $bundle_name);
+  // dpm(array('entity'=>$entity, 'entity_type' => $entity_type, 'bundle_name'=>$bundle_name, 'instances'=>$instances) );
   $grouped_transitions = array();
   foreach ($instances as $k => $instance) {
     $trans = wf_field_get_current_transition_options($entity, $instance);
@@ -364,7 +416,7 @@ function _wf_field_build_entity_transtion_rules($entity_type, $module, $variable
       if (!$transition['disabled']) {
         $events['wf_field_transition_' . $entity_type . '_' . $instance['field_name'] . '_' . $key] = array(
           'group' => t('Workflow Field'),
-          'label' => t('@entity_type: @field - Transition: !transition', array('@entity_type'=>$entity_type, '@field' => $instance['field_name'], '!transition' => $transition['full_label'])),
+          'label' => t('@entity_type: @field - Transition: !transition', array('@entity_type' => $entity_type, '@field' => $instance['field_name'], '!transition' => $transition['full_label'])),
           'module' => $module,
           'variables' => $variables
         );
@@ -375,13 +427,13 @@ function _wf_field_build_entity_transtion_rules($entity_type, $module, $variable
     foreach ($states as $key => $label ) {
       $events['wf_field_in_' . $entity_type . '_' . $instance['field_name'] . '_' . $key] = array(
         'group' => t('Workflow Field'),
-        'label' => t('@entity_type: @field - On entering state (=inward): !label', array('@entity_type'=>$entity_type, '@field' => $instance['field_name'], '!label' => $label)),
+        'label' => t('@entity_type: @field - On entering state (=inward): !label', array('@entity_type' => $entity_type, '@field' => $instance['field_name'], '!label' => $label)),
         'module' => $module,
         'variables' => $variables
       );
       $events['wf_field_out_' . $entity_type . '_' . $instance['field_name'] . '_' . $key] = array(
         'group' => t('Workflow Field'),
-        'label' => t('@entity_type: @field - On leaving state (=outward): !label', array('@entity_type'=>$entity_type, '@field' => $instance['field_name'], '!label' => $label)),
+        'label' => t('@entity_type: @field - On leaving state (=outward): !label', array('@entity_type' => $entity_type, '@field' => $instance['field_name'], '!label' => $label)),
         'module' => $module,
         'variables' => $variables
       );
@@ -389,7 +441,7 @@ function _wf_field_build_entity_transtion_rules($entity_type, $module, $variable
     // one rules event that will be triggered on "any" transition
     $events['wf_field_any_' . $entity_type . '_' . $instance['field_name'] ] = array(
       'group' => t('Workflow Field'),
-      'label' => t('@entity_type: @field - on any transition', array('@entity_type'=>$entity_type, '@field' => $instance['field_name'])),
+      'label' => t('@entity_type: @field - on any transition', array('@entity_type' => $entity_type, '@field' => $instance['field_name'])),
       'module' => $module,
       'variables' => $variables
     );
@@ -401,7 +453,8 @@ function _wf_field_build_entity_transtion_rules($entity_type, $module, $variable
 function _wf_field_get_current_workflow_state($entity, $field_name_or_instance) {
   if ( is_array($field_name_or_instance) ) {
     $field_name = $field_name_or_instance['field_name'];
-  } else {
+  } 
+  else {
     $field_name = $field_name_or_instance;
   }
   return isset($entity->{$field_name}['und'][0]['wf_state']) ? $entity->{$field_name}['und'][0]['wf_state'] : NULL;

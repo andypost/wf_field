@@ -22,11 +22,12 @@ define('WF_FIELD_DENY', NODE_ACCESS_DENY);
 function wf_field_field_info() {
   return array(
     'wf_state' => array(
-      'label' => t('Workflow State'),
-      'description' => t('Workflow State.'),
+      'label' => t('Workflow Field'),
+      'description' => t('Workflow Field'),
       'default_widget' => 'wf_field_options',
       'default_formatter' => 'wf_field_simple_text',
-  ),
+      'cardinality' => 1
+    ),
   );
 }
 
@@ -80,9 +81,8 @@ function wf_field_field_validate($entity_type, $entity, $field, $instance, $lang
   }
 }
 
-
-function wf_field_field_instance_settings_form($field, $instance) {
-  $settings = $instance['settings'];
+function wf_field_field_settings_form($field, $instance, $has_data) {
+  $settings = $field['settings'];
   $widget = $instance['widget'];
   $form = array();
 
@@ -105,9 +105,10 @@ function wf_field_field_instance_settings_form($field, $instance) {
   //
   $form['wf_settings']['wf_states']['text']  = array(
     '#type' => 'textarea',
-    '#title' => t("One workflow state per line. Workflows must be identified by *numbers*, but can have text descriptions if given on the form '1|draft' or '2|draft (ready for review)'; '3|Publication|Published'"),
+    '#title' => t("One workflow state per line. Workflows must be identified by integers but can have text descriptions if given on the form '1|draft' or '2|draft (ready for review)'; if you want to provide a 'passive'-voice description please use this format '3|Publication|Published'"),
     '#default_value' => isset( $settings['wf_settings']['wf_states']['text']   ) ? $settings['wf_settings']['wf_states']['text']  : '',
-    '#weight' => -1
+    '#weight' => -1,
+    '#element_validate' => array('wf_field_settings_wf_states_validate')
   );
 
   if (is_array($transitions) && sizeof($transitions)) {
@@ -150,6 +151,14 @@ function wf_field_field_instance_settings_form($field, $instance) {
   return $form;
 }
 
+function wf_field_settings_wf_states_validate($element, &$form_state) {
+  $value = $element['#value'];
+  module_load_include('inc', 'wf_field');
+  if (!_wf_field_validate_states_string($value)) {
+    form_error($element, t('Please check the definition of the workflow states - state ids need to be integer values and unique.', array('!name' => $element['#title']))); 
+  }
+}
+
 
 /**
  * Implements hook_field_is_empty().
@@ -174,7 +183,7 @@ function wf_field_field_formatter_info() {
     'wf_field_simple_text' => array(
       'label' => t('Simple text-based formatter'),
       'field types' => array('wf_state'),
-  ),
+    ),
   );
 }
 
@@ -338,27 +347,28 @@ function wf_field_field_load($entity_type, $entities, $field, $instances, $langc
 }
 
 function wf_field_field_update($entity_type, $entity, $field, $instance, $langcode, &$items) {
-  $new_value = $entity->{$instance['field_name']}[ $langcode ][0]['wf_state'];
+  // only if a new value is set 
+  if (!isset($entity->{$instance['field_name']}[ $langcode ][0]['wf_state'])) {
+    return NULL;
+  }
   
-  // @todo: use 
+  $new_value = $entity->{$instance['field_name']}[ $langcode ][0]['wf_state'];
   if (!isset($items[0]['wf_state_old'])) {
     $eid = entity_id($entity_type, $entity);
     $es = entity_load($entity_type, array($eid) );
     $unsaved_entity = $es[ $eid ];
     $old_value = isset($unsaved_entity->{$instance['field_name']}[ $langcode ][0]['wf_state']) ? $unsaved_entity->{$instance['field_name']}['und'][0]['wf_state'] : NULL;
-  } else {
+  } 
+  else {
     $old_value = $items[0]['wf_state_old'];  
   }
-  //
   
-  // @todo: better way to find the *old* state
-	// retrieve old and new value
-	
+  // compare old and new value
   if ( $old_value != $new_value ) {
-  	// basic info about this
+    // basic info about this
     $vars = array(
-    	'old_value' => $old_value, 
-    	'new_value' => $new_value, 
+      'old_value' => $old_value, 
+      'new_value' => $new_value, 
     );
     // let's provide a possibility to manipulate and abort! 
     $responses = module_invoke_all('wf_field_before_transition_rules', $entity_type, $entity, $field, $instance, $langcode, $items, $vars);
@@ -366,7 +376,7 @@ function wf_field_field_update($entity_type, $entity, $field, $instance, $langco
     if (is_array($responses) && sizeof($responses) && in_array(WF_FIELD_DENY, $responses)) {
       // @todo: proper d7 exceptions how to do these.
       throw new Exception( t('Transition has been aborted') );
-      return false;
+      return FALSE;
     }
     // run the transition rules 
     $responses = module_invoke_all('wf_field_transition_rules', $entity_type, $entity, $field, $instance, $langcode, $items, $vars);
@@ -391,22 +401,22 @@ function wf_field_wf_field_transition_rules($entity_type, $entity, $field, $inst
       // The first four lines of the expression below is the name of the
       // workflow event, on the form wf_field_transition_node_fieldname_{FROMSTATE}_{TOSTATE}.
       rules_invoke_event(
-        'wf_field_transition_' . $entity_type. '_' . $instance['field_name'] . '_' . $vars['old_value'] . '_' . $vars['new_value'], $entity, $user, $author
+        'wf_field_transition_' . $entity_type . '_' . $instance['field_name'] . '_' . $vars['old_value'] . '_' . $vars['new_value'], $entity, $user, $author
       );
       
       // invoke outbound events 
       if (isset($vars['old_value'])) {
         rules_invoke_event(
-          'wf_field_out_'  . $entity_type. '_' . $instance['field_name'] . '_' . $vars['old_value'], $entity, $user, $author
+          'wf_field_out_' . $entity_type . '_' . $instance['field_name'] . '_' . $vars['old_value'], $entity, $user, $author
         );
       }
       // invoke inbound events
       rules_invoke_event(
-        'wf_field_in_' .  $entity_type. '_' .  $instance['field_name'] . '_' . $vars['new_value'], $entity, $user, $author
+        'wf_field_in_' . $entity_type . '_' . $instance['field_name'] . '_' . $vars['new_value'], $entity, $user, $author
       );
       // "any transition"-events per instance/field_name
       rules_invoke_event(
-        'wf_field_any_' .  $entity_type. '_' .  $instance['field_name'] , $entity, $user, $author
+        'wf_field_any_' . $entity_type . '_' . $instance['field_name'] , $entity, $user, $author
       );
       break;
   }  
@@ -452,6 +462,7 @@ function wf_field_block_view($delta = '') {
       if (is_object($node)) { 
         module_load_include('inc', 'wf_field');
         $grouped_transitions = _wf_field_get_all_grouped_transitions($node, 'node', $node->type);
+        // dpm($grouped_transitions);
         // @todo: include an edit-link if the user can edit this node? 
         if (sizeof($grouped_transitions)) {
           $block['subject'] = t('Transitions');
@@ -512,4 +523,15 @@ function wf_field_menu() {
 function wf_field_trigger_transition_access($node, $field_name, $target_state) {
   module_load_include('inc', 'wf_field');
   return wf_field_is_transition_allowed($node, $field_name, $target_state);
+}
+
+
+/**
+ * Implement hook_views_api().
+ */
+function wf_field_views_api() {
+  return array(
+    'api' => 3, 
+    'path' => drupal_get_path('module', 'wf_field') . '/includes/views',
+  );
 }

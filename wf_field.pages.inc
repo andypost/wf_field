@@ -37,7 +37,7 @@ function wf_field_trigger_transition($form, $form_state, $node, $field_name, $ta
     if ( drupal_get_token($_GET['q']) == $_REQUEST['token'] ) {
       module_load_include('inc', 'wf_field');
       wf_field_transition_execute($node, $field_name, $target_state, array('access_check' => FALSE) );
-      drupal_goto( isset($_REQUEST['destination']) ? $_REQUEST['destination'] : null );
+      drupal_goto( isset($_REQUEST['destination']) ? $_REQUEST['destination'] : NULL );
     }
   } 
   else {
@@ -45,7 +45,7 @@ function wf_field_trigger_transition($form, $form_state, $node, $field_name, $ta
     $form_state['field_name'] = $field_name;
     $form_state['target_state'] = $target_state;
     $state_label = wf_field_get_current_state_label($target_state, $instance );
-    $info = wf_field_get_current_transition_options($node, $instance, array('complete_info'=>true));
+    $info = wf_field_get_current_transition_options($node, $instance, array('complete_info' => TRUE) );
     $transition_label = $info[ $target_state ]['label'];
     
     return confirm_form(
@@ -53,7 +53,7 @@ function wf_field_trigger_transition($form, $form_state, $node, $field_name, $ta
         t('Confirm transition %transition_label', array('%transition_label' => $transition_label)),
         isset($_REQUEST['destination']) ? drupal_parse_url( $_REQUEST['destination'] ) : '',
         t('Do you want to transition !title to the state %state_label?', array('!title' => l($node->title, 'node/' . $node->nid), '%state_label' => $state_label)),
-        t('@transition_label @title', array('@transition_label'=>$transition_label, '@title'=>$node->title) ),  t('Cancel')
+        t('@transition_label @title', array('@transition_label' => $transition_label, '@title' => $node->title) ),  t('Cancel')
       );
   }
 }

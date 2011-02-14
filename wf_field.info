@@ -3,3 +3,5 @@ name = Workflow Field (wf_field)
 description = Field-based workflow state relying on the rules engine for reactions etc. 
 core = 7.x
 dependencies[] = rules
+
+files[] = includes/views/handlers/views_handler_filter_field_wf_field_list.inc
