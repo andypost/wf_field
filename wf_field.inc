@@ -8,21 +8,39 @@
  */
 
 /**
+ * Helper function that returns the appropriate field info for a range of inputs
+ * - instance-array
+ * - field_name 
+ * - field_id
+ * - field-array
+ *  
+ * Enter description here ...
+ * @param array/string  either a field
+ */
+function _wf_field_get_field_info($array_or_string) {
+  if (is_string($array_or_string)) {
+    if (is_numeric($array_or_string)) {
+      $field = field_info_field_by_id($array_or_string);
+    } else {
+      $field = field_info_field($array_or_string);
+    }
+  }
+  elseif (isset($array_or_string['field_name'])) {
+    $field = field_info_field($array_or_string['field_name']);
+  } 
+  else {
+    $field = field_info_field_by_id($array_or_string['field_id']);
+  }
+  return $field;
+}
+
+/**
  * Return all states
  * @param	array		field instance array
  * @param unknown_type $options  passive => TRUE - return (optional) passive label (i.e. Published instead of Publication)
  */
 function _wf_field_get_states($instance_or_fieldname, $options=array()) {
-  if (is_string($instance_or_fieldname)) {
-    $field = field_info_field($instance_or_fieldname);
-  }
-  elseif (!isset($instance_or_fieldname['field_id']) && isset($instance_or_fieldname['field_name'])) {
-    $field = field_info_field($instance_or_fieldname['field_name']);
-  } 
-  else {
-    $field = field_info_field_by_id($instance_or_fieldname['field_id']);
-  }
-  
+  $field = _wf_field_get_field_info($instance_or_fieldname);  
   if (!isset($field['settings']['wf_settings']['wf_states']['text']  )) {
     return FALSE;
   }
@@ -77,13 +95,7 @@ function _wf_field_validate_states_string($string, $options=array()) {
  * @param array $instance
  */
 function _wf_field_get_transition_labels($instance) {
-  if (!isset($instance['field_id']) && isset($instance['field_name'])) {
-    $field = field_info_field($instance['field_name']);
-  } 
-  else {
-    $field = field_info_field_by_id($instance['field_id']);
-  }
-  
+  $field = _wf_field_get_field_info($instance);  
   if (!isset($field['settings']['wf_settings']['wf_transitions'])) {
     return FALSE;
   }
@@ -95,12 +107,7 @@ function _wf_field_get_transition_labels($instance) {
  * Return the (named) transitions of an instance
  */
 function _wf_field_has_transition_label($from, $to, $instance) {
-  if (!isset($instance['field_id']) && isset($instance['field_name'])) {
-    $field = field_info_field($instance['field_name']);
-  } 
-  else {
-    $field = field_info_field_by_id($instance['field_id']);
-  }
+  $field = _wf_field_get_field_info($instance);
   if (!isset($field['settings']['wf_settings']['wf_transitions'][$from . '_' . $to])) {
     return NULL;
   } 
@@ -110,6 +117,38 @@ function _wf_field_has_transition_label($from, $to, $instance) {
   else {
     return $field['settings']['wf_settings']['wf_transitions'][$from . '_' . $to];
   }
+}
+
+/**
+ * Helper function that returns all fields of type wf_fields (optionally those attach
+ * @param string $entity_type
+ * @param string $bundle_name
+ * @param string $field_name
+ * @return array of instances
+ */
+function _wf_field_get_all_fields($entity_type=NULL, $bundle_name=NULL) {
+  $fields = field_info_fields();
+  $wf_fields = array();
+  foreach ($fields as $field_name => $field_info) {
+    if ($field_info['module'] == 'wf_field') {
+      // filter by entity type
+      if ( isset($entity_type) && !isset($bundle_name) ) {
+        $include = isset($field_info['bundles'][$entity_type]);
+      }
+      // filter by entity type and bundle name 
+      elseif ( isset($entity_type) && isset($bundle_name) ) {
+        $include = isset($field_info['bundles'][$entity_type]) && in_array($bundle_name, $field_info['bundles'][$entity_type]);
+      }
+      // otherwise include
+      else {
+        $include = true;
+      }
+      if ($include) {
+        $wf_fields[$field_info['field_name']] = $field_info;
+      }
+    }
+  }
+  return $wf_fields;
 }
 
 /**
@@ -383,15 +422,17 @@ function wf_field_transition_execute($node, $field_name, $target_state, $options
 }
 
 
-function _wf_field_get_all_grouped_transitions($entity, $entity_type, $bundle_name) {
+function _wf_field_get_all_grouped_transitions($entity, $entity_type, $bundle_name, $field_name=NULL) {
   $instances = _wf_field_get_all_instances($entity_type, $bundle_name);
   // dpm(array('entity'=>$entity, 'entity_type' => $entity_type, 'bundle_name'=>$bundle_name, 'instances'=>$instances) );
   $grouped_transitions = array();
   foreach ($instances as $k => $instance) {
-    $trans = wf_field_get_current_transition_options($entity, $instance);
-    if (sizeof($trans)) {
-      $grouped_transitions[$k]['transitions'] = $trans;
-      $grouped_transitions[$k]['instance'] = $instance;
+    if (!isset($field_name) || $field_name == $instance['field_name']) {
+      $trans = wf_field_get_current_transition_options($entity, $instance);
+      if (sizeof($trans)) {
+        $grouped_transitions[$k]['transitions'] = $trans;
+        $grouped_transitions[$k]['instance'] = $instance;
+      }
     } 
   }
   return $grouped_transitions;

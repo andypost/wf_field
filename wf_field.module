@@ -26,7 +26,8 @@ function wf_field_field_info() {
       'description' => t('Workflow Field'),
       'default_widget' => 'wf_field_options',
       'default_formatter' => 'wf_field_simple_text',
-      'cardinality' => 1
+      'cardinality' => 1,
+      'translatable' => 0
     ),
   );
 }
@@ -81,6 +82,9 @@ function wf_field_field_validate($entity_type, $entity, $field, $instance, $lang
   }
 }
 
+/**
+ * Implements hook_field_settings_form().
+ */
 function wf_field_field_settings_form($field, $instance, $has_data) {
   $settings = $field['settings'];
   $widget = $instance['widget'];
@@ -151,6 +155,9 @@ function wf_field_field_settings_form($field, $instance, $has_data) {
   return $form;
 }
 
+/**
+ * Validate given state value in the wf_field_settings_form. 
+ */
 function wf_field_settings_wf_states_validate($element, &$form_state) {
   $value = $element['#value'];
   module_load_include('inc', 'wf_field');
@@ -179,9 +186,13 @@ function wf_field_field_is_empty($item, $field) {
  */
 function wf_field_field_formatter_info() {
   return array(
-  // Simple text
-    'wf_field_simple_text' => array(
+    // Simple text
+    'wf_field_formatter_simple_text' => array(
       'label' => t('Simple text-based formatter'),
+      'field types' => array('wf_state'),
+    ),
+    'wf_field_formatter_transition_links' => array(
+      'label' => t('Transition links'),
       'field types' => array('wf_state'),
     ),
   );
@@ -195,10 +206,19 @@ function wf_field_field_formatter_info() {
  */
 function wf_field_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
   $element = array();
-
+  module_load_include('inc', 'wf_field');
   switch ($display['type']) {
-    case 'wf_field_simple_text':
-      module_load_include('inc', 'wf_field');
+    // render as transition links
+    case 'wf_field_formatter_transition_links':
+      $grouped_transitions = _wf_field_get_all_grouped_transitions($entity, $entity_type, NULL, $instance['field_name']);
+      // @todo: chose on a per-formatter/display-settings basis 
+      $confirm_form = variable_get('wf_field_trigger_transition_block_use_confirmation_form', FALSE);
+      foreach ($items as $delta => $item) {
+        $element[$delta] = theme('wf_field_transition_block', array('node' => $entity, 'grouped_transitions' => $grouped_transitions, 'confirm_form' => $confirm_form) );
+      }
+      break;
+    case 'wf_field_formatter_simple_text':
+    default:
       foreach ($items as $delta => $item) {
         // @todo: better
         $element[$delta]['#markup'] =
@@ -208,7 +228,6 @@ function wf_field_field_formatter_view($entity_type, $entity, $field, $instance,
       }
       break;
   }
-
   return $element;
 }
 
@@ -462,7 +481,6 @@ function wf_field_block_view($delta = '') {
       if (is_object($node)) { 
         module_load_include('inc', 'wf_field');
         $grouped_transitions = _wf_field_get_all_grouped_transitions($node, 'node', $node->type);
-        // dpm($grouped_transitions);
         // @todo: include an edit-link if the user can edit this node? 
         if (sizeof($grouped_transitions)) {
           $block['subject'] = t('Transitions');
