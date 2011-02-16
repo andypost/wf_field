@@ -354,6 +354,9 @@ function wf_field_field_widget_error($element, $error, $form, &$form_state) {
   }
 }
 
+/**
+ * Implements hook_field_load().
+ */
 function wf_field_field_load($entity_type, $entities, $field, $instances, $langcode, &$items, $age) {
   // store 
   foreach ($entities as $id => $entity) {
@@ -365,12 +368,50 @@ function wf_field_field_load($entity_type, $entities, $field, $instances, $langc
   }
 }
 
-function wf_field_field_update($entity_type, $entity, $field, $instance, $langcode, &$items) {
-  // only if a new value is set 
+/**
+ * Implements hook_field_insert().
+ */
+function wf_field_field_insert($entity_type, $entity, $field, $instance, $langcode, &$items) {
+  // only if a value is set
   if (!isset($entity->{$instance['field_name']}[ $langcode ][0]['wf_state'])) {
     return NULL;
   }
-  
+  // detect if we have a state "change" on create, i.e. something that is not the default value.  
+  // @todo: check whether we *always* want this course of action?
+  $new_value = $entity->{$instance['field_name']}[ $langcode ][0]['wf_state'];
+  $default_value = $instance['default_value'][0]['wf_state'];
+  if ( $default_value != $new_value ) {
+    // basic info about this
+    $vars = array(
+      'old_value' => $default_value, 
+      'new_value' => $new_value, 
+      'inserting' => TRUE
+    );
+    // let's provide a possibility to manipulate and abort! 
+    $responses = module_invoke_all('wf_field_before_transition_rules', $entity_type, $entity, $field, $instance, $langcode, $items, $vars);
+    // @todo: verify this is the best way to do this
+    if (is_array($responses) && sizeof($responses) && in_array(WF_FIELD_DENY, $responses)) {
+      // @todo: proper d7 exceptions how to do these.
+      throw new Exception( t('Transition has been aborted') );
+      return FALSE;
+    }
+    // run the transition rules 
+    $responses = module_invoke_all('wf_field_transition_rules', $entity_type, $entity, $field, $instance, $langcode, $items, $vars);
+    // run "after" transition rules 
+    $responses = module_invoke_all('wf_field_after_transition_rules', $entity_type, $entity, $field, $instance, $langcode, $items, $vars);
+    // "rollback" probably doesn't make sense any more, too many things have happened ...  
+    // We'll never be able to ensure "undoing"/rolling back rule events, that ship has sailed ...  
+  }
+}
+
+/**
+ * Implements hook_field_update().
+ */
+function wf_field_field_update($entity_type, $entity, $field, $instance, $langcode, &$items) {
+  // only if a new value is set
+  if (!isset($entity->{$instance['field_name']}[ $langcode ][0]['wf_state'])) {
+    return NULL;
+  }
   $new_value = $entity->{$instance['field_name']}[ $langcode ][0]['wf_state'];
   if (!isset($items[0]['wf_state_old'])) {
     $eid = entity_id($entity_type, $entity);
@@ -381,7 +422,6 @@ function wf_field_field_update($entity_type, $entity, $field, $instance, $langco
   else {
     $old_value = $items[0]['wf_state_old'];  
   }
-  
   // compare old and new value
   if ( $old_value != $new_value ) {
     // basic info about this
