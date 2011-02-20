@@ -16,6 +16,9 @@ function theme_wf_field_transition_block( &$variables ) {
   $node = $variables['node'];
   $confirm_form = isset($variables['confirm_form']) && $variables['confirm_form'];
   $query = array('destination' => $_GET['q']); 
+  $items = array();
+  
+  // loop grouped transitions
   foreach ($grouped_transitions as $nr => $info) {
     foreach ($info['transitions'] as $target_state => $transition_label) {
       $url = 'node/' . $node->nid . '/wf_field_trigger_transition/' . $info['instance']['field_name'] . '/' . $target_state;
@@ -34,6 +37,8 @@ function theme_wf_field_transition_block( &$variables ) {
     ); 
   }
   else {
-    return t('No transitions available.');
+    return array(
+      '#markup' => t('No transitions available.')
+    );
   }
 }

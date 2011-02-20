@@ -191,6 +191,7 @@ function wf_field_field_formatter_info() {
       'label' => t('Simple text-based formatter'),
       'field types' => array('wf_state'),
     ),
+    // @todo: handle caching?
     'wf_field_formatter_transition_links' => array(
       'label' => t('Transition links'),
       'field types' => array('wf_state'),
@@ -209,6 +210,7 @@ function wf_field_field_formatter_view($entity_type, $entity, $field, $instance,
   module_load_include('inc', 'wf_field');
   switch ($display['type']) {
     // render as transition links
+    // @todo: handle caching? when does drupal cache renderings of nodes?  
     case 'wf_field_formatter_transition_links':
       $grouped_transitions = _wf_field_get_all_grouped_transitions($entity, $entity_type, NULL, $instance['field_name']);
       // @todo: chose on a per-formatter/display-settings basis 
