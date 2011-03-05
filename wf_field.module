@@ -271,8 +271,15 @@ function wf_field_field_widget_form(&$form, &$form_state, $field, $instance, $la
   $is_default_value_widget = ( isset($form['#type']) && $form['#type'] == 'fieldset' ) && $form['#title'] == t('Default value') ;
 
   module_load_include('inc', 'wf_field');  
-  
-  $value = isset($items[$delta]['wf_state']) ? $items[$delta]['wf_state'] : NULL;
+  module_load_include('inc', 'wf_field');
+  if ($is_default_value_widget) {
+    $value = isset($items[$delta]['wf_state']) ? $items[$delta]['wf_state'] : NULL;
+  } else {
+    // find a value, fall back on the default_value if none is given
+    $value = ( isset($items[$delta]['wf_state']) ) ?
+      $items[$delta]['wf_state'] :
+      ( isset($instance['default_value'][0]['wf_state']['value']) ? $instance['default_value'][0]['wf_state']['value'] : NULL );
+  }
   $widget = $instance['widget'];
   $element += array(
     '#delta' => $delta,
@@ -291,7 +298,7 @@ function wf_field_field_widget_form(&$form, &$form_state, $field, $instance, $la
   else {
     switch ($widget['type']) {
       case 'wf_field_buttons':
-        $options = (array) wf_field_get_current_transition_options($value, $instance);
+        $options = (array) wf_field_get_current_transition_options($value, $instance, array('index_by_state_id'=>true));
         // @todo: find a good "#weight"
         $weight = isset($form['actions']['submit']) ? $form['actions']['submit']['#weight'] + 1 : 100;
         // this only works on the node-form 
