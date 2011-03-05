@@ -281,7 +281,7 @@ function wf_field_get_transitions($state_or_node, $field_name_or_instance, $opti
   $complete_info = isset($options['complete_info']) && $options['complete_info'];
   
   // how to key the returned array (by target-state-id or transition-id) 
-  $use_transition_as_key = !isset($filter_from_state);
+  $use_transition_as_key = !isset($filter_from_state) && (!isset($options['index_by_state_id']) || !$options['index_by_state_id'] );
   
   // allow for checking for a different user  
   $account = isset($options['account']) ? $options['account'] : $GLOBALS['user'];
