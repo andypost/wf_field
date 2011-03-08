@@ -259,6 +259,10 @@ function wf_field_field_widget_info() {
       'label' => t('Buttons'),
       'field types' => array('wf_state'),
     ),
+    'wf_field_none' => array(
+      'label' => t('No widget (disabled)'),
+      'field types' => array('wf_state'),
+    ),
   );
 }
 
@@ -270,7 +274,6 @@ function wf_field_field_widget_form(&$form, &$form_state, $field, $instance, $la
   // @todo - a better way to do this?
   $is_default_value_widget = ( isset($form['#type']) && $form['#type'] == 'fieldset' ) && $form['#title'] == t('Default value') ;
 
-  module_load_include('inc', 'wf_field');  
   module_load_include('inc', 'wf_field');
   if ($is_default_value_widget) {
     $value = isset($items[$delta]['wf_state']) ? $items[$delta]['wf_state'] : NULL;
@@ -297,6 +300,9 @@ function wf_field_field_widget_form(&$form, &$form_state, $field, $instance, $la
   }
   else {
     switch ($widget['type']) {
+      case 'wf_field_none':
+        // this "widget" is "no-widget", i.e. nothing's displayed in the form.  
+        break;      
       case 'wf_field_buttons':
         $options = (array) wf_field_get_current_transition_options($value, $instance, array('index_by_state_id'=>true));
         // @todo: find a good "#weight"
