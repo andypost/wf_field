@@ -233,21 +233,25 @@ function wf_field_get_transitions($state_or_node, $field_name_or_instance, $opti
         $options['filter_from_state'] = $state_or_node;
       } 
       elseif (isset($field_name_or_instance['field_name'])) {
+        $language = $state_or_node->language;
+        
         // find the appropriate instance-field-value
         $field_name = $field_name_or_instance['field_name']; 
-        $options['filter_from_state'] = isset($state_or_node->{$field_name}['und'][0]['wf_state']) ? $state_or_node->{$field_name}['und'][0]['wf_state'] : NULL;
+        $options['filter_from_state'] = isset($state_or_node->{$field_name}[ $language ][0]['wf_state']) ? $state_or_node->{$field_name}[ $language ][0]['wf_state'] : $field_name_or_instance['default_value'][0]['wf_state'];
       }       
     }
     $instance = $field_name_or_instance;
   } 
   elseif ( is_string($field_name_or_instance) && is_object($state_or_node) ) {
+    $language = $state_or_node->language;
     // @todo - not just handle node.
     $instance = _wf_field_get_wf_field_instance('node', $field_name_or_instance, $state_or_node->type);
     if (!is_array($instance)) {
       return FALSE;
     }
     $field_name = $instance['field_name']; 
-    $options['filter_from_state'] = isset($state_or_node->{$field_name}['und'][0]['wf_state']) ? $state_or_node->{$field_name}['und'][0]['wf_state'] : NULL;
+    $options['filter_from_state'] = isset($state_or_node->{$field_name}[ $language ][0]['wf_state']) ? $state_or_node->{$field_name}[ $language ][0]['wf_state'] : $instance['default_value'][0]['wf_state'];
+    
   } 
   else {
     // we cannot determine the instance
@@ -331,9 +335,10 @@ function wf_field_get_transitions($state_or_node, $field_name_or_instance, $opti
   // if we have a concrete instance of a node - let's allow
   // for certain target states to be removed (or even added)  
   if (is_object($state_or_node)) {
+    $current_state = isset($options['filter_from_state']) ? $options['filter_from_state'] : NULL; 
     // the transitions-array will be keyed by targetstate  
-    $context =  array('object' => $state_or_node, 'field_instance' => $instance, 'options' => $options) ;
-    drupal_alter('wf_field_transitions_alter', $transitions, $context);
+    $context =  array('object' => $state_or_node, 'field_instance' => $instance, 'options' => $options, 'current_state' => $current_state ) ;
+    drupal_alter('wf_field_transitions', $transitions, $context);
   }
   
   return $transitions;
@@ -356,7 +361,8 @@ function wf_field_get_current_state_label($state, $instance, $options=array()) {
   
   if (is_object($state)) {
     $field_name = $instance['field_name'];
-    $state = $state->{$field_name}['und'][0]['wf_state'];
+    $langcode = isset($state->language) ? $state->language : 'und';
+    $state = $state->{$field_name}[ $langcode ][0]['wf_state'];
   } 
   $states = _wf_field_get_states($instance, $options);
   return isset($states[$state]) ? $states[$state] : t('-');
@@ -410,9 +416,9 @@ function wf_field_transition_execute($node, $field_name, $target_state, $options
   if (!wf_field_is_transition_allowed($node, $instance, $target_state)) {
     return FALSE;
   }
-  
+  $langcode = isset($node->language) ? $node->language : 'und' ;
   // @todo: check whether we want to have a new revision in that case: $node->revision = 1;
-  $node->{$field_name}['und'][0]['wf_state'] = $target_state;
+  $node->{$field_name}[ $langcode ][0]['wf_state'] = $target_state;
   try {
     node_save($node);
     return TRUE; 
@@ -498,5 +504,6 @@ function _wf_field_get_current_workflow_state($entity, $field_name_or_instance) 
   else {
     $field_name = $field_name_or_instance;
   }
-  return isset($entity->{$field_name}['und'][0]['wf_state']) ? $entity->{$field_name}['und'][0]['wf_state'] : NULL;
+  $langcode = isset($entity->language) ? $entity->language : 'und';
+  return isset($entity->{$field_name}[ $langcode ][0]['wf_state']) ? $entity->{$field_name}[ $langcode ][0]['wf_state'] : NULL;
 }
