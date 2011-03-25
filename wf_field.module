@@ -27,9 +27,13 @@ function wf_field_field_info() {
       'default_widget' => 'wf_field_options',
       'default_formatter' => 'wf_field_simple_text',
       'cardinality' => 1,
-      'translatable' => 0
+      'translatable' => FALSE,
+      'property_type' => 'struct',
+      'property_callbacks' => array('wf_field_property_info_callback'),
     ),
   );
+  entity_metadata_field_entity_property_info();
+  entity_metadata_field_term_reference_callback();
 }
 
 /**
@@ -191,11 +195,16 @@ function wf_field_field_formatter_info() {
       'label' => t('Simple text-based formatter'),
       'field types' => array('wf_state'),
     ),
-    // @todo: handle caching?
+    // Simple text
+    'wf_field_formatter_simple_text_transition_links' => array(
+      'label' => t('Text and transition links'),
+      'field types' => array('wf_state'),
+    ),
+    // @todo: how caching is caching handled?
     'wf_field_formatter_transition_links' => array(
       'label' => t('Transition links'),
       'field types' => array('wf_state'),
-    ),
+    )
   );
 }
 
@@ -212,17 +221,23 @@ function wf_field_field_formatter_view($entity_type, $entity, $field, $instance,
     // render as transition links
     // @todo: handle caching? when does drupal cache renderings of nodes?  
     case 'wf_field_formatter_transition_links':
+    case 'wf_field_formatter_simple_text_transition_links':
       $grouped_transitions = _wf_field_get_all_grouped_transitions($entity, $entity_type, NULL, $instance['field_name']);
       // @todo: chose on a per-formatter/display-settings basis 
       $confirm_form = variable_get('wf_field_trigger_transition_block_use_confirmation_form', FALSE);
       foreach ($items as $delta => $item) {
         $element[$delta] = theme('wf_field_transition_block', array('node' => $entity, 'grouped_transitions' => $grouped_transitions, 'confirm_form' => $confirm_form) );
+        if ($display['type']=='wf_field_formatter_simple_text_transition_links') {
+          $element[$delta]['#prefix'] = '<div class="wf-field-state-' . check_plain($item['wf_state']) . ' wf-field-' . check_plain($instance['field_name']) . '-state-' . check_plain($item['wf_state']) . '">' .
+              wf_field_get_current_state_label($item['wf_state'], $instance, array('passive' => TRUE)) .
+            '</div>';
+        }
       }
       break;
     case 'wf_field_formatter_simple_text':
     default:
       foreach ($items as $delta => $item) {
-        // @todo: better
+        // @todo: refactor, really
         $element[$delta]['#markup'] =
           '<div class="wf-field-state-' . check_plain($item['wf_state']) . ' wf-field-' . check_plain($instance['field_name']) . '-state-' . check_plain($item['wf_state']) . '">' .
             wf_field_get_current_state_label($item['wf_state'], $instance, array('passive' => TRUE)) .
@@ -301,7 +316,15 @@ function wf_field_field_widget_form(&$form, &$form_state, $field, $instance, $la
   else {
     switch ($widget['type']) {
       case 'wf_field_none':
-        // this "widget" is "no-widget", i.e. nothing's displayed in the form.  
+        // this "widget" is "no-widget", i.e. nothing's displayed in the form.
+        // we avoid some notices if we do it this way ... 
+        // @todo: understand this crap ... 
+        $element['wf_state'] = array(
+          '#type' => 'hidden',
+          '#default_value' => $value,
+        	'#constant_value' => $value,
+          '#element_validate' => array('wf_field_widget_none_validate')
+        );
         break;      
       case 'wf_field_buttons':
         $options = (array) wf_field_get_current_transition_options($value, $instance, array('index_by_state_id'=>true));
@@ -349,6 +372,31 @@ function wf_field_field_widget_form(&$form, &$form_state, $field, $instance, $la
 }
 
 /**
+ * Passes the value into the hidden field if a transition-submit button has been "clicked"
+ * @param array $element
+ * @param array $form_state
+ */
+function wf_field_button_widget_hidden_validate($element, &$form_state) {
+  $op = $form_state['values']['op'];
+  if (isset($element['#transition_map'][$op])) {
+    $transition = $element['#transition_map'][$op];
+    form_set_value($element, $transition['target_state'], $form_state);
+  }
+}
+
+/**
+ * Validate thie 
+ * @param array $element
+ * @param array $form_state
+ */
+function wf_field_widget_none_validate($element, &$form_state) {
+  // do not allow to change this value
+  if ($element['#value'] != $element['#constant_value']) {
+    form_error($element, t('Invalid value'));
+  }
+}
+
+/**
  * Validate field options
  * @TODO: 
  */
@@ -373,11 +421,9 @@ function wf_field_field_widget_error($element, $error, $form, &$form_state) {
  * Implements hook_field_load().
  */
 function wf_field_field_load($entity_type, $entities, $field, $instances, $langcode, &$items, $age) {
-  // store 
+  // store "old" value to be able to detect changes w/o a database fallback  
   foreach ($entities as $id => $entity) {
     foreach ($items[$id] as $delta => $item) {
-      // Only process items with a cacheable format, the rest will be handled
-      // by formatters if needed.
       $items[$id][$delta]['wf_state_old'] = isset($item['wf_state']) ?  $item['wf_state'] : NULL;
     }
   }
@@ -432,7 +478,13 @@ function wf_field_field_update($entity_type, $entity, $field, $instance, $langco
     $eid = entity_id($entity_type, $entity);
     $es = entity_load($entity_type, array($eid) );
     $unsaved_entity = $es[ $eid ];
-    $old_value = isset($unsaved_entity->{$instance['field_name']}[ $langcode ][0]['wf_state']) ? $unsaved_entity->{$instance['field_name']}['und'][0]['wf_state'] : NULL;
+    
+    $old_value = isset($unsaved_entity->{$instance['field_name']}[ $langcode ][0]['wf_state']) ? $unsaved_entity->{$instance['field_name']}[ $langcode ][0]['wf_state'] : NULL;
+    
+    // fallback to the default value if no value isset or given at all!
+    if (!isset($old_value)) {
+      $old_value = $default_value = $instance['default_value'][0]['wf_state'];
+    }    
   } 
   else {
     $old_value = $items[0]['wf_state_old'];  
@@ -496,20 +548,6 @@ function wf_field_wf_field_transition_rules($entity_type, $entity, $field, $inst
   }  
 }
 
-
-
-/**
- * Passes the value into the hidden field if a transition-submit button has been "clicked"
- * @param array $element
- * @param array $form_state
- */
-function wf_field_button_widget_hidden_validate($element, &$form_state) {
-  $op = $form_state['values']['op'];
-  if (isset($element['#transition_map'][$op])) {
-    $transition = $element['#transition_map'][$op];
-    form_set_value($element, $transition['target_state'], $form_state);
-  }
-}
 // }}} FIELDS
 
 // {{{ BLOCK + MENUS
@@ -607,4 +645,53 @@ function wf_field_views_api() {
     'api' => 3, 
     'path' => drupal_get_path('module', 'wf_field') . '/includes/views',
   );
+}
+
+/**
+ * @param stdClass $entity
+ * @return WfFieldEntityWrapper
+ */
+function wf_field_entity_wrapper($entity_type, $entity, $options=array() ) {
+  module_load_include('inc', 'wf_field');
+  module_load_include('inc', 'wf_field', 'includes/wf_field_entity.wrapper');
+  return new WfFieldEntityWrapper($entity_type, $entity, $options );
+}
+
+/**
+ * Gets 
+ * @param unknown_type $entity
+ * @param array $options
+ * @param unknown_type $name
+ * @param unknown_type $entity_type
+ * @param unknown_type $context
+ * @return	WfFieldPropertyWrapper
+ */
+function wf_field_property_get($entity, array $options, $name, $entity_type, &$context) {
+  module_load_include('inc', 'wf_field', 'includes/wf_field_property.wrapper');
+  // @todo clarify 
+  return new WfFieldPropertyWrapper($entity, $options, $name, $entity_type, &$context);
+}
+
+/**
+ * Writes the passed field items in the object. Useful as field level setter
+ * to set the whole data structure at once.
+ */
+function wf_field_property_set($entity, $name, $items, $langcode) {
+  dpm( 'wf_field_property_set', 'wf_field_property_set' );
+  return entity_metadata_field_verbatim_set($entity, $name, $items, $langcode);
+}
+
+/**
+ * Get the raw wf_field workflow state id 
+ * @param stdclass $entity
+ * @param array $options
+ * @param string $name
+ * @param string $entity_type
+ * @param array $context
+ * @return	int/NULL	
+ */
+function wf_field_property_get_raw($entity, array $options, $name, $entity_type, &$context) {
+  $value = entity_metadata_verbatim_get($entity, $options, $name, $entity_type, $context);
+  $langcode = field_language($entity_type, $entity, $name, isset($options['language']) ? $options['language']->language : NULL);
+  return isset($value[$langcode][0]['wf_state']) ? $value[$langcode][0]['wf_state']: NULL;
 }

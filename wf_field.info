@@ -1,7 +1,11 @@
 ; $Id$
 name = Workflow Field (wf_field)
-description = Field-based workflow state relying on the rules engine for reactions etc. 
+description = Field-based workflow state relying on the rules engine for reactions etc.
+package = wf_field
+ 
 core = 7.x
 dependencies[] = rules
 
 files[] = includes/views/handlers/views_handler_filter_field_wf_field_list.inc
+files[] = includes/wf_field_entity.wrapper.inc
+files[] = includes/wf_field_property.wrapper.inc
