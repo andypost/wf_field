@@ -1,0 +1,9 @@
+<?php
+/**
+ * Implements hook_node_operations().
+ */
+function wf_field_node_operations() {
+  $operations = array();
+  // loop all states? or all available transitions? 
+  return $operations;
+}

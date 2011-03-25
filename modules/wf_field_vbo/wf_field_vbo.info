@@ -1,0 +1,6 @@
+; $Id$
+name = wf_field_vbo
+description = views_bulk_operation integration    
+core = 7.x
+package = wf_field
+dependencies[] = wf_field
